@@ -157,13 +157,50 @@ class Room:
             p.ready, p.word, p.index = False, "", 0
         return [self._state(now)]
 
+    # ---- connections (Q8) ----
+
+    def disconnect(self, slot: int, now: float) -> list:
+        p = self.players.get(slot)
+        if p is None or not p.connected or self.closed:
+            return []
+        p.connected = False
+        p.hold.reset()
+        if self.paused_at is None:
+            self.paused_at = now
+            self.close_at = now + self.s.reconnect_grace
+        return [self._state(now)]
+
+    def reconnect(self, slot: int, now: float) -> list:
+        self.players[slot].connected = True
+        if self.paused_at is not None and all(p.connected for p in self.players.values()):
+            if self.deadline is not None:
+                self.deadline += now - self.paused_at  # timers resume where they froze
+            self.paused_at = self.close_at = None
+        outs = [Send(slot, self._joined(slot)), self._state(now)]
+        if self.phase is Phase.SIGNING:
+            outs.append(Send(slot, self._round_start(slot)))
+            outs += [Send(slot, {"type": "progress", "slot": p.slot, "done": p.index, "length": len(p.word)})
+                     for p in self._ordered()]
+        elif self.phase is Phase.GAME_OVER:
+            outs.append(Send(slot, self._game_over()))
+        return outs
+
     # ---- clock ----
 
     def tick(self, now: float) -> list:
-        if self.closed or self.deadline is None or now < self.deadline:
+        if self.closed:
+            return []
+        if self.paused_at is not None:  # timers freeze while someone is reconnecting (Q8)
+            if now < self.close_at:
+                return []
+            self.closed = True
+            return [Send(None, {"type": "room_closed", "reason": "partner_left"}), CloseRoom("partner_left")]
+        if self.deadline is None or now < self.deadline:
             return []
         if self.phase is Phase.COUNTDOWN:
             return self._start_signing(now)
+        if self.phase is Phase.SIGNING:
+            return self._round_failed(now)
         if self.phase is Phase.REVEAL:
             return self._start_countdown(now)
         return []
@@ -192,6 +229,11 @@ class Room:
         self.deadline = now + self.s.time_limit
         starts = [Send(p.slot, self._round_start(p.slot)) for p in self._ordered()]
         return [*starts, self._state(now), FetchPair(frozenset(self.used))]  # prefetch the next pair
+
+    def _round_failed(self, now: float) -> list:
+        missed = [p.slot for p in self._ordered() if not p.done]
+        return [Send(None, {"type": "round_failed", "round": self.round_no, "reason": "timeout", "slots": missed}),
+                *self._start_countdown(now)]  # 0 points; the prefetched pair starts next (Q13)
 
     # ---- messages ----
 

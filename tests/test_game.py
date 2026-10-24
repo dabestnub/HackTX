@@ -200,3 +200,59 @@ def test_five_rounds_reach_500_then_game_over_and_play_again():
     room.play_again(1, t)
     assert room.phase is Phase.LOBBY and room.score == 0 and room.round_no == 0 and not room.used
     assert not any(p.ready for p in room.players.values())
+
+
+def test_timeout_fails_the_round_and_starts_a_new_pair():
+    room = lobby()
+    start(room)  # signing from t=3, deadline t=13
+    sign(room, 1, "RED", 3.0)
+    assert room.tick(12.9) == []
+    outs = room.tick(13.0)
+    assert sent(outs, "round_failed") == [{"type": "round_failed", "round": 1, "reason": "timeout", "slots": [2]}]
+    assert room.score == 0 and room.phase is Phase.COUNTDOWN
+    room.on_pair("BIG", "DOG")
+    outs = room.tick(13.0 + S.countdown)
+    assert sent(outs, "round_start", to=1)[0]["your_word"] == "DOG"  # new pair, roles swapped
+
+
+def test_disconnect_pauses_and_reconnect_resumes_with_the_same_time_left():
+    room = lobby()
+    start(room)  # deadline t=13
+    outs = room.disconnect(2, 5.0)  # 8 s left
+    assert sent(outs, "room_state")[0]["paused"] is True
+    assert room.tick(20.0) == []  # frozen, no timeout
+    assert room.on_recognition(1, onehot("R"), None, 20.0) == []
+    outs = room.reconnect(2, 25.0)
+    assert sent(outs, "room_joined", to=2)[0]["token"] == "t2"
+    assert sent(outs, "round_start", to=2)[0]["your_word"] == "CAT"
+    assert [m["slot"] for m in sent(outs, "progress", to=2)] == [1, 2]
+    state = sent(outs, "room_state")[0]
+    assert state["paused"] is False and state["time_left"] == 8.0
+    assert room.tick(32.9) == []
+    assert sent(room.tick(33.0), "round_failed")
+
+
+def test_room_closes_after_the_reconnect_grace():
+    room = lobby()
+    start(room)
+    room.disconnect(2, 5.0)
+    assert room.tick(34.9) == []
+    outs = room.tick(35.0)
+    assert sent(outs, "room_closed") == [{"type": "room_closed", "reason": "partner_left"}]
+    assert [o.reason for o in outs if isinstance(o, CloseRoom)] == ["partner_left"]
+    assert room.closed and room.tick(40.0) == []
+
+
+def test_lobby_needs_both_players_connected_to_start():
+    room = lobby()
+    room.set_ready(2, True, 0.0)
+    room.disconnect(2, 0.0)
+    room.set_ready(1, True, 0.0)
+    assert room.phase is Phase.LOBBY
+
+
+def test_reconnect_after_game_over_resends_the_gallery():
+    room = lobby()
+    room.phase = Phase.GAME_OVER
+    room.disconnect(1, 0.0)
+    assert sent(room.reconnect(1, 1.0), "game_over", to=1)
