@@ -231,14 +231,14 @@ Updated after every implemented task. Each task is built by one coding agent, th
 | 5 | MediaPipe recognizer matching the repo's `app.py` | Done | 82725ea |
 | 6 | Engine 1/3: rooms, lobby, countdown, round start | Done | 8b5710a |
 | 7 | Engine 2/3: signing, images, scoring, game over | Done | 72304ba |
-| 8 | Engine 3/3: timeout, disconnect, reconnect | Not started | |
+| 8 | Engine 3/3: timeout, disconnect, reconnect | Done | 9b9414d |
 | 9 | Muse client and placeholder image | Not started | |
 | 10 | FastAPI server and WebSocket protocol | Not started | |
 | 11 | `docs/protocol.md` for the frontend teammate | Not started | |
 | 12 | `/dev` camera test page | Not started | |
 | 13 | Dockerfile and fly.toml | Not started | |
 
-Tests: 42 passing at Task 7 (`uv run pytest -q`).
+Tests: 47 passing at Task 8 (`uv run pytest -q`).
 
 Decisions made during the build, beyond the interview answers:
 - After an image appears, it shows for 5 seconds (`reveal`) before the next 3-second countdown. Both values are in `server/config.py`.
@@ -248,4 +248,5 @@ Decisions made during the build, beyond the interview answers:
 - Frames over 640x480 pixels are refused before decoding (`OPENCV_IO_MAX_IMAGE_PIXELS`), so a small JPEG that claims a huge size cannot exhaust memory.
 - A third player joining a full room is refused by the server (Task 10), not by the engine.
 - Known edge case: if frames stop mid-hold and resume on the same letter, the hold can complete at once. This is low risk; revisit it if the camera test shows false accepts.
+- If an image arrives while a player is reconnecting, its reveal runs longer than 5 seconds by the length of the pause. This is harmless and left as is.
 - Not tested yet: a frame with a real hand. The first camera test is the first check of that path.
