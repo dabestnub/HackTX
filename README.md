@@ -1,6 +1,6 @@
 # SignSync — Multiplayer ASL Game Powered by AI
 
-SignSync is a collaborative two-player game where players alternate signing ASL fingerspelling letters, complete words together, generate shared AI imagery, and earn points against a two-minute timer.
+SignSync is a two-player ASL fingerspelling game. Players create or join a room, each sign their own word (letters confirm automatically when held steady), and see an AI picture combining both players' words, and race to 500 team points before the two-minute timer ends. Camera recognition runs locally in each browser. Chat and results sharing are not implemented.
 
 ## UI reference samples
 
@@ -12,13 +12,35 @@ The supplied UI samples are stored in [`ui-samples/`](ui-samples/).
 
 ## Current website prototype
 
-The static website UI is in [`index.html`](index.html) and can be hosted by a static site host that serves `index.html` from the site root. For local testing, run `python3 -m http.server 8000` from this folder and open `http://localhost:8000`. Camera access requires HTTPS on a hosted site (localhost is allowed for local testing).
+The UI is in [`index.html`](index.html). The app needs the Node/WebSocket server in [`server.js`](server.js); static-only hosting is not enough for room play. For local use:
+
+```bash
+npm install
+npm start
+```
+
+Then open `http://localhost:8000` in two browser windows/devices.
+
+## Host for players on different computers
+
+The included [`render.yaml`](render.yaml) configures a Render web service for the Node app. It serves the website and room WebSocket from the same service, binds to Render's `PORT` on `0.0.0.0`, and uses Render's HTTPS endpoint so the browser connects over WSS and can request camera permission.
+
+1. Push this branch to GitHub.
+2. In Render, choose **New > Blueprint**, connect the GitHub repository, and select the branch containing `render.yaml` (currently `jessica-feature`).
+   For this private repository, its owner or an administrator must ensure Render's GitHub App is installed with access to `dabestnub/HackTX`.
+3. Review the Blueprint and create the service. Wait for its first deploy to finish, then copy the service's `https://…onrender.com` URL.
+4. On both computers, open that same HTTPS URL. One player creates a room and shares its code; the other joins with that code.
+5. Each player separately enables local ASL recognition or live video and grants camera permission when prompted. Both must opt into live video.
+
+Render supports inbound WebSockets and provisions HTTPS for its public service URL. The client selects WSS automatically when the page uses HTTPS. No separate static-site service or local-host address is needed.
+
+This prototype keeps rooms in memory: a server restart or redeploy clears them. Render's free service may sleep while idle, so the first visit after inactivity can take longer and active rooms should not be treated as persistent. Local ASL inference runs in each player's browser; camera frames are not sent to the game server. Live video uses peer-to-peer WebRTC and the app currently has STUN but no TURN relay, so restrictive networks may block video even when room gameplay works. Do not put permanent TURN credentials in browser code; reliable TURN support should use a provider that issues short-lived credentials.
 
 The visual refresh applies the [UI UX Pro Max guidance](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill): semantic design tokens, stronger type and content hierarchy, restrained surfaces and shadows, responsive reflow, visible keyboard focus, and reduced-motion support. The skill is design guidance only; the site does not depend on its runtime or tooling.
 
-Selecting **Enable local ASL recognition** asks the browser for camera permission. The page uses MediaPipe Tasks Vision and ONNX Runtime Web to process camera frames and landmarks in the browser; it does not upload or store them. Runtime code/WASM and the MediaPipe hand-landmarker asset are loaded from jsDelivr and Google's model hosting, so the browser needs network access for those downloads; they do not receive camera frames. Predictions are shown with the upstream model's raw softmax score and require explicit confirmation. The app asks for a hand release before arming a subsequent letter. A live browser test predicted and accepted C. J/Z motion recognition is not verified.
+Selecting **Enable local ASL recognition** asks the browser for camera permission. The page uses MediaPipe Tasks Vision and ONNX Runtime Web to process camera frames and landmarks locally; ASL frames and landmarks are not sent to the game server. Runtime code/WASM and the MediaPipe hand-landmarker asset are loaded from jsDelivr and Google's model hosting, so the browser needs network access for those downloads; they do not receive camera frames. Predictions are shown with the upstream model's raw softmax score and require explicit confirmation. The app asks for a hand release before arming a subsequent letter. A live browser test predicted and accepted C. J/Z motion recognition is not verified.
 
-This remains a single-browser practice prototype: turns alternate locally, the second player is not connected, and the timer, authoritative scoring, multiplayer backend, and AI image generation are not implemented. The simulation control is clearly labeled for testing.
+Multiplayer currently uses two-player in-memory rooms. The server authoritatively checks turns and expected letters, tracks word completions, team score, and the two-minute timer, and accepts reconnect tokens. Rooms disappear after a server restart and are not persisted. The room's simulation control is clearly labeled for testing; real camera predictions require explicit confirmation. Live video is separately opt-in for each player and uses a peer-to-peer WebRTC connection; the game server relays only WebRTC signaling, not video or audio (audio capture is disabled). WebRTC may require TURN infrastructure for some networks; this prototype includes a public STUN server but no TURN service. When both players finish their words, the server asks Meta Muse for one picture combining them (set `META_MUSE_API_KEY` in a local `.env` or as a Render environment variable; the key never reaches the browser) and play continues with new random words until 500 points.
 
 To regenerate the browser classifier assets from a local checkout of the required ASL repository, install its requirements plus ONNX in a Python environment and run:
 
@@ -57,8 +79,8 @@ Suggested first instruction:
 
 1. **Validate recognition locally.** Follow the repository's documented setup, run its webcam demo, test several letters, and investigate J/Z support.
 2. **Choose an integration path.** The current prototype uses browser-local MediaPipe and ONNX Runtime Web inference because classifier export was verified against the upstream PyTorch model. Keep camera frames local. Use a Python inference service only if browser conversion becomes unreliable and after explicit consent for any frame transfer.
-3. **Build a multiplayer vertical slice.** Connect two separate browsers, show camera previews, alternate turns, and synchronize confirmed letters.
-4. **Add words, score, and timer.** Use a server-authoritative two-minute timer and team score target of 500. Prevent duplicate scoring.
+3. **Build a multiplayer vertical slice.** Complete: two separate clients can create/join rooms, alternate turns, and synchronize confirmed letters through the WebSocket server.
+4. **Add words, score, and timer.** Complete: the server validates words, awards team points toward 500, runs a two-minute timer, and deduplicates action IDs. Automated two-client integration coverage is in `server.test.js`.
 5. **Add image generation.** Verify the actual Muse Image API/service access and implement an adapter with loading/error states. Clearly label any mock fallback.
 6. **Add communication.** Implement real-time text chat and optional speech-to-text.
 7. **Add results and sharing.** Show statistics and use a supported, user-initiated Facebook sharing flow where available.
@@ -69,16 +91,16 @@ Suggested first instruction:
 - Exactly two players join a shared room.
 - Players alternate signing individual ASL fingerspelling letters.
 - Accepted letters appear for both players.
-- A completed word triggers one image-generation request.
-- Both players see the same generated image.
+- A completed word advances the shared game and updates team score.
+- Both players see the same illustrative image placeholder; generated images are not available yet.
 - The team earns points toward 500 within two minutes.
 - Text chat is available; voice transcription is optional.
 - Results can be shared only after an explicit user action.
 
 ## Architecture notes
 
-- **Frontend:** React or Next.js, TypeScript, responsive CSS, browser webcam APIs.
-- **Multiplayer:** WebSockets/Socket.IO or another real-time service.
+- **Frontend:** Responsive single-page HTML/CSS/JavaScript and browser webcam APIs.
+- **Multiplayer:** Node.js HTTP server and WebSockets (`ws`); room state is in memory.
 - **Recognition:** Python, MediaPipe, PyTorch, and the existing repository's model, subject to source verification.
 - **Backend:** authoritative turns, word validation, scoring, timer, room membership, and idempotent game events.
 - **Image generation:** a modular adapter for the verified Muse Image integration.

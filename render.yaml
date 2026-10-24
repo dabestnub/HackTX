@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: syncsign
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: META_MUSE_API_KEY
+        sync: false

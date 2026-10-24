@@ -67,7 +67,9 @@ Local verification status:
   probability calibration, general accuracy, or motion-dependent J/Z.
 
 Checkpoint: model setup and one live static-letter inference work locally.
-The user chose browser-local inference; do not transmit camera frames. The
+The user chose browser-local inference; ASL inference frames and landmarks are
+not sent to the game server. Optional live video is a separate explicit
+peer-to-peer share, and is never relayed or stored by the game server. The
 browser-local path also predicted and accepted C from the camera, then required
 hand release before re-arming. Test more static letters and investigate the
 motion-dependent J/Z limits before claiming broader recognition support.
@@ -91,20 +93,24 @@ confirmation and the hand must be released before re-arming. Camera frames
 and landmarks are not sent to a server. The simulation remains available and
 clearly labeled.
 
-Step 3 - Build one real multiplayer game loop
----------------------------------------------
-Create/join a room for exactly two players; show camera status and previews;
-implement turn ownership, prediction confirmation/retry, and shared accepted
-letters. The server must validate whose turn it is and broadcast the result.
-Checkpoint: two separate browsers see the same letters and alternating turns.
+Step 3 - Build one real multiplayer game loop (complete)
+---------------------------------------------------------
+Create/join a room for exactly two players; synchronize room members, turn
+ownership, prediction confirmation/retry, and accepted letters through the
+WebSocket server. ASL inference remains local; players can separately opt into
+peer-to-peer video. The UI provides an invite link and room-code flow.
+Checkpoint: two WebSocket clients join and receive the same authoritative
+letters and alternating turns. Live camera streaming requires both players to
+grant camera access and may not connect on restrictive networks without TURN.
 
-Step 4 - Add validated words, score, and timer
-----------------------------------------------
-Add a small word bank (start with CAT), a server-authoritative two-minute
-round, team score toward 500, and unique action IDs to prevent duplicate
-scoring. Handle reconnects and invalid submissions.
-Checkpoint: acceptance tests for valid completion, timer expiry, and duplicate
-events pass.
+Step 4 - Add validated words, score, and timer (complete)
+----------------------------------------------------------
+The server validates the six-word cycle, runs a server-authoritative
+two-minute round, awards team score toward 500, and deduplicates action IDs.
+Reconnect tokens restore a player's seat; disconnected rounds pause until
+players reconnect. `npm test` verifies room creation/joining, turn enforcement,
+duplicate action handling, shared letter updates, and reaching 500 points.
+Timer expiry and browser reconnect still need broader dedicated coverage.
 
 Step 5 - Add image generation behind an adapter
 ------------------------------------------------
@@ -137,9 +143,11 @@ unavailable services work.
 
 Demo scope (current)
 --------------------
-index.html is a static-hostable UI prototype for one CAT round. It can request
-camera permission after the user clicks Enable local ASL recognition. The
-classifier and hand landmarks run in the browser; frames are not uploaded or
-stored. It is a single-browser practice flow, not a multiplayer game. Its
-simulation control remains clearly labeled; image generation is illustrative,
-the timer does not run, and there is no networking or game backend.
+`npm start` serves the website and WebSocket room server. Two browser clients
+can create/join a room, take turns confirming letters, and share server-
+validated words, score, and a two-minute timer. Room state is in memory, so a
+server restart clears active games. ASL inference permission is requested
+after a player selects Enable local ASL recognition. Live video sharing is
+separate and opt-in; video goes peer-to-peer after both players enable sharing.
+The simulation control remains clearly labeled. Image generation is
+illustrative only; chat and social sharing are not implemented.
