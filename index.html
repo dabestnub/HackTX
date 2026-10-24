@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#fff7dc">
-  <title>SignSync — local ASL practice</title>
+  <title>SignSync — multiplayer ASL game</title>
   <style>
     :root {
       color-scheme: light;
@@ -28,6 +28,7 @@
     }
 
     * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
 
     body {
       margin: 0;
@@ -91,6 +92,7 @@
     .player-name { font-weight: 800; letter-spacing: -0.01em; }
     .turn-tag { padding: 6px 10px; border: 1px solid #ccd9f4; border-radius: 999px; background: var(--color-primary-soft); color: #294f9b; font-size: 0.72rem; font-weight: 850; letter-spacing: 0.045em; }
     .preview { display: grid; min-height: 172px; margin-top: 15px; overflow: hidden; place-items: center; border: 1px dashed #aebbc9; border-radius: 17px; background-color: #e3eaf1; background-image: radial-gradient(rgba(108, 129, 151, 0.15) 1px, transparent 1px); background-position: center; background-size: 15px 15px; text-align: center; }
+    #remote-video { width: 100%; height: 100%; min-height: 220px; max-height: 320px; border-radius: 16px; object-fit: cover; transform: none; }
     .preview-icon { font-size: 2.5rem; filter: drop-shadow(0 3px 3px rgba(63, 75, 93, 0.13)); }
     .preview p { max-width: 240px; margin: 7px 12px 0; color: #505c69; font-size: 0.91rem; }
     .camera-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 13px; }
@@ -122,6 +124,45 @@
     .notice { min-height: 1.5em; margin: 14px 0 0; color: #404754; font-size: 0.92rem; }
     .fine-print { margin: 17px 4px 0; color: #5d6470; font-size: 0.83rem; line-height: 1.6; }
     .completed { color: #287642; font-weight: 800; }
+    .lobby { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr); gap: 20px; align-items: stretch; margin: 0 auto 22px; }
+    .lobby-intro, .lobby-panel, .waiting-card { padding: clamp(22px, 4vw, 38px); }
+    .lobby-intro { display: flex; min-height: 330px; flex-direction: column; justify-content: center; overflow: hidden; background: radial-gradient(circle at 90% 5%, #ffe4ce 0 13%, transparent 13.5%), radial-gradient(circle at 96% 3%, #f7d4ef 0 22%, transparent 22.5%), var(--color-surface); }
+    .eyebrow { margin-bottom: 12px; color: #8f5b45; font-size: 0.76rem; font-weight: 850; letter-spacing: 0.13em; text-transform: uppercase; }
+    .lobby-title { max-width: 620px; margin-bottom: 12px; font-size: clamp(2rem, 5vw, 3.35rem); letter-spacing: -0.06em; line-height: 1.04; }
+    .lobby-copy { max-width: 540px; margin-bottom: 24px; color: var(--color-muted); font-size: 1.03rem; }
+    .step-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+    .step-pill { padding: 7px 10px; border: 1px solid #e6e1d7; border-radius: 999px; background: #fffdf7; color: #505663; font-size: 0.78rem; font-weight: 700; }
+    .lobby-panel { display: flex; flex-direction: column; justify-content: center; }
+    .lobby-panel h2 { margin-bottom: 5px; font-size: 1.4rem; }
+    .lobby-panel > p { margin-bottom: 19px; color: var(--color-muted); font-size: 0.9rem; }
+    .lobby-form { display: grid; gap: 12px; }
+    .lobby-form + .lobby-form { margin-top: 15px; padding-top: 16px; border-top: 1px solid #e8ebef; }
+    .lobby-form label { display: grid; gap: 6px; color: #515b69; font-size: 0.82rem; font-weight: 750; }
+    input { width: 100%; min-height: 48px; padding: 0 13px; border: 1px solid #c9d0db; border-radius: var(--radius-control); background: white; color: var(--color-foreground); font: inherit; }
+    input:focus-visible { outline: 3px solid var(--color-ring); outline-offset: 3px; }
+    input::placeholder { color: #89909b; }
+    .room-code-input { text-transform: uppercase; letter-spacing: 0.12em; }
+    .lobby-error { min-height: 1.4em; margin: 12px 0 0; color: #a33131; font-size: 0.86rem; font-weight: 650; }
+    .waiting-card { max-width: 760px; margin: 0 auto 22px; text-align: center; }
+    .room-code-display { display: inline-flex; align-items: center; gap: 11px; margin: 12px 0 18px; padding: 11px 15px; border: 1px solid #d7deeb; border-radius: 15px; background: #f2f5fb; color: #294f9b; font-size: 1.3rem; font-weight: 900; letter-spacing: 0.15em; }
+    .room-code-display button { min-height: 38px; padding: 6px 10px; font-size: 0.8rem; letter-spacing: 0; }
+    .room-players { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; text-align: left; }
+    .room-player { padding: 13px; border: 1px solid var(--color-border); border-radius: 15px; background: #f9fafc; }
+    .room-player strong, .room-player span { display: block; }
+    .room-player span { margin-top: 3px; color: var(--color-muted); font-size: 0.8rem; }
+    .status-live { color: #31734a !important; }
+    .status-away { color: #9a6433 !important; }
+    .lobby-back { margin-top: 6px; }
+    .game-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 13px; }
+    .game-room-label { color: var(--color-muted); font-size: 0.87rem; font-weight: 700; }
+    .game-room-label strong { color: var(--color-foreground); }
+    .leave-room { min-height: 40px; padding: 7px 11px; font-size: 0.82rem; }
+    .game-over { display: none; margin-bottom: 15px; padding: 13px 16px; border: 1px solid #b9d8c0; border-radius: 15px; background: #edf8ef; color: #28683c; font-weight: 750; }
+    .game-over.visible { display: block; }
+    .players .player { min-width: 0; }
+    .player-connection { display: flex; align-items: center; gap: 6px; color: var(--color-muted); font-size: 0.75rem; }
+    .connection-dot { width: 8px; height: 8px; border-radius: 50%; background: #b67d3e; }
+    .connection-dot.online { background: #4c9a64; }
 
     @media (max-width: 760px) {
       .page { width: min(100% - 28px, 560px); padding: 18px 0 34px; }
@@ -130,6 +171,8 @@
       .brand-mark { width: 48px; height: 48px; border-radius: 16px; }
       .badge { margin-left: 59px; font-size: 0.78rem; }
       .players, .game-grid { grid-template-columns: 1fr; gap: 14px; }
+      .lobby { grid-template-columns: 1fr; gap: 14px; }
+      .lobby-intro { min-height: auto; }
       .preview { min-height: 150px; }
       .score-card, .word-card, .image-card, .controls-card { padding: 18px; }
       .word-card, .image-card { min-height: 0; }
@@ -145,6 +188,8 @@
       .letter { width: 54px; height: 59px; }
       .controls { align-items: stretch; }
       .controls > button, .field, .field select { width: 100%; }
+      .room-players { grid-template-columns: 1fr; }
+      .game-topbar { align-items: flex-start; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -162,8 +207,58 @@
           <p class="subhead">A little game, made together.</p>
         </div>
       </div>
-      <span class="badge"><span class="dot" aria-hidden="true"></span><span>Local practice · one browser</span></span>
+      <span class="badge"><span class="dot" aria-hidden="true"></span><span id="site-status">Multiplayer · make a room</span></span>
     </header>
+
+    <section class="lobby" id="menu-screen" aria-labelledby="menu-title">
+      <article class="card lobby-intro">
+        <p class="eyebrow">Sign together, create together</p>
+        <h2 class="lobby-title" id="menu-title">A tiny word can make a big connection.</h2>
+        <p class="lobby-copy">Invite a friend into a room, take turns fingerspelling a word, and build your team score. Camera recognition runs locally in each browser.</p>
+        <div class="step-pills" aria-label="How to play">
+          <span class="step-pill">1 · Make a room</span>
+          <span class="step-pill">2 · Invite a friend</span>
+          <span class="step-pill">3 · Take turns</span>
+        </div>
+      </article>
+      <article class="card lobby-panel">
+        <h2>Ready to play?</h2>
+        <p>Create a private room or enter a friend’s six-character code.</p>
+        <form class="lobby-form" id="create-form">
+          <label for="create-name">Your nickname
+            <input id="create-name" name="name" maxlength="24" autocomplete="nickname" placeholder="e.g. Alex" required>
+          </label>
+          <button type="submit" id="create-room">Create a room</button>
+        </form>
+        <form class="lobby-form" id="join-form">
+          <label for="join-name">Nickname
+            <input id="join-name" name="name" maxlength="24" autocomplete="nickname" placeholder="e.g. Jamie" required>
+          </label>
+          <label for="join-code">Room code
+            <input class="room-code-input" id="join-code" name="code" maxlength="6" autocomplete="off" placeholder="ABC234" required>
+          </label>
+          <button type="submit" class="secondary" id="join-room">Join a room</button>
+        </form>
+        <p class="lobby-error" id="lobby-error" role="status" aria-live="polite"></p>
+      </article>
+    </section>
+
+    <section class="card waiting-card" id="waiting-screen" hidden aria-labelledby="waiting-title">
+      <p class="eyebrow">Room is ready</p>
+      <h2 id="waiting-title">Your friend is one code away.</h2>
+      <p class="muted">Share this code. The round begins when both players are connected.</p>
+      <div class="room-code-display"><span id="room-code">------</span><button type="button" id="copy-invite">Copy invite</button></div>
+      <div class="room-players" id="lobby-players"></div>
+      <p class="camera-status" id="waiting-status" role="status" aria-live="polite">Waiting for another player to join…</p>
+      <button type="button" class="secondary lobby-back" id="cancel-room">Back to menu</button>
+    </section>
+
+    <div id="game-screen" hidden>
+    <div class="game-topbar">
+      <p class="game-room-label">Room <strong id="game-room-code"></strong> · <span id="game-connection">Connecting…</span></p>
+      <button type="button" class="secondary leave-room" id="leave-room">Leave room</button>
+    </div>
+    <div class="game-over" id="game-over" role="status" aria-live="polite"></div>
 
     <section class="card score-card" aria-label="Round status">
       <div class="score-row">
@@ -172,7 +267,7 @@
           <div class="score-number"><span id="score">0</span> <span>/ 500 points</span></div>
         </div>
         <div>
-          <div class="muted">Round timer · demo only</div>
+          <div class="muted">Time left</div>
           <div class="timer" aria-label="Two minutes">02:00</div>
         </div>
       </div>
@@ -184,29 +279,39 @@
     <section class="players" aria-label="Players">
       <article class="player active" id="player-one">
         <div class="player-top">
-          <span class="player-name">Player 1 · Camera</span>
+          <span class="player-name" id="player-one-name">Player 1</span>
           <span class="turn-tag" id="tag-one">YOUR TURN</span>
         </div>
-        <div class="preview" id="camera-preview" aria-label="Camera preview">
-          <div><div class="preview-icon" aria-hidden="true">📷</div><p>Your camera is off. Enable it when you're ready.</p></div>
-        </div>
-        <div class="camera-actions">
-          <button type="button" id="camera-start">Enable local ASL recognition</button>
-          <button type="button" class="secondary" id="camera-stop" hidden>Turn camera off</button>
-        </div>
-        <p class="camera-status" id="camera-status" role="status" aria-live="polite">Camera is off. Enable local ASL recognition to request permission. Camera frames and hand landmarks stay in this browser.</p>
-        <div class="prediction-readout" aria-live="polite">
-          <span class="prediction-letter" id="live-prediction">—</span>
-          <span class="prediction-detail" id="prediction-detail">No stable handshape yet</span>
+        <div class="player-connection"><span class="connection-dot" id="connection-one"></span><span id="connection-one-text">Connected</span></div>
+        <div id="local-media-panel">
+          <div class="preview" id="camera-preview" aria-label="Camera preview">
+            <div><div class="preview-icon" aria-hidden="true">📷</div><p>Your camera is off. Enable it when you're ready.</p></div>
+          </div>
+          <div class="camera-actions">
+            <button type="button" id="camera-start">Enable local ASL recognition</button>
+            <button type="button" class="secondary" id="camera-stop" hidden>Turn camera off</button>
+          </div>
+          <div class="camera-actions">
+            <button type="button" class="secondary" id="video-share-start">Share live video with player</button>
+            <button type="button" class="secondary" id="video-share-stop" hidden>Stop sharing video</button>
+          </div>
+          <p class="camera-status" id="video-share-status" role="status" aria-live="polite">Video is private until you choose to share it. Shared video goes peer-to-peer, not through the game server.</p>
+          <p class="camera-status" id="camera-status" role="status" aria-live="polite">Camera is off. Enable local ASL recognition to request permission. Camera frames and hand landmarks stay in this browser.</p>
+          <div class="prediction-readout" aria-live="polite">
+            <span class="prediction-letter" id="live-prediction">—</span>
+            <span class="prediction-detail" id="prediction-detail">No stable handshape yet</span>
+          </div>
         </div>
       </article>
       <article class="player" id="player-two">
         <div class="player-top">
-          <span class="player-name">Player 2 · Local turn</span>
+          <span class="player-name" id="player-two-name">Player 2</span>
           <span class="turn-tag" id="tag-two" hidden>YOUR TURN</span>
         </div>
-        <div class="preview" aria-label="Second player's preview unavailable in this demo">
-          <div><div class="preview-icon" aria-hidden="true">👋</div><p>Turns alternate in this browser; a second device is not connected.</p></div>
+        <div class="player-connection"><span class="connection-dot" id="connection-two"></span><span id="connection-two-text">Waiting</span></div>
+        <div class="preview" id="remote-video-preview" aria-label="Other player's camera preview">
+          <div id="remote-video-placeholder"><div class="preview-icon" aria-hidden="true">👋</div><p id="remote-player-status">Waiting for your friend to join the room.</p></div>
+          <video id="remote-video" autoplay muted playsinline hidden aria-label="Your friend's shared live video"></video>
         </div>
       </article>
     </section>
@@ -215,15 +320,15 @@
       <article class="card word-card">
         <div>
           <h2>Spell the word</h2>
-          <p class="muted">The target stays visible during this local practice round.</p>
+          <p class="muted">Take turns signing the shared target word.</p>
           <div class="letter-slots" id="letters" aria-label="CAT, no letters confirmed yet">
             <span class="letter" data-index="0">?</span>
             <span class="letter" data-index="1">?</span>
             <span class="letter" data-index="2">?</span>
           </div>
-          <strong>Target: CAT</strong>
+          <strong>Target: <span id="target-word">CAT</span></strong>
         </div>
-        <div class="turn-row"><span id="turn-copy">Player 1 signs the first letter</span><span class="turn-arrow" aria-hidden="true">→</span><span>then alternate</span></div>
+        <div class="turn-row"><span id="turn-copy">Waiting for the room to start</span><span class="turn-arrow" aria-hidden="true">→</span><span>take turns</span></div>
       </article>
 
       <article class="card image-card">
@@ -240,7 +345,7 @@
 
     <section class="card controls-card" aria-labelledby="controls-title">
       <h2 id="controls-title">Confirm the next letter</h2>
-      <p class="muted">Real predictions use the existing classifier in this browser. Release your hand after confirming. You can also simulate a prediction for testing.</p>
+      <p class="muted">Real predictions use the existing classifier in this browser. Release your hand after confirming. The server checks the turn and expected letter. Simulation is for testing.</p>
       <div class="controls">
         <button type="button" class="secondary" id="simulate">Simulate expected letter</button>
         <label class="field" for="prediction">Prediction to review
@@ -264,39 +369,62 @@
       <p class="notice" id="notice" role="status" aria-live="polite">Ready when you are. Simulate a prediction to begin.</p>
     </section>
 
-    <p class="fine-print">Camera privacy: video and hand landmarks are processed locally and are not uploaded or stored. The page downloads its inference libraries from CDNs; those downloads do not include camera data. This is a single-browser prototype, not multiplayer; the timer, scoring rules, image generation, and motion-dependent J/Z recognition are not complete. Recognition can be inaccurate and is not full ASL translation. Camera access requires HTTPS or localhost.</p>
+    </div>
+    <p class="fine-print">ASL inference runs locally in your browser. Live video is private unless you explicitly choose Share live video; when shared, it streams peer-to-peer and is not relayed or stored by the game server. Multiplayer signaling, confirmed letters, and game state pass through the room server. Recognition can be inaccurate and is not full ASL translation; motion-dependent J/Z recognition is not verified.</p>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/ort.min.js"></script>
   <script>
     (() => {
-      const target = "CAT";
-      const scorePerWord = 100;
+      let target = "CAT";
+      let accepted = "";
+      let currentPlayer = 0;
+      let roomState = null;
+      let playerSlot = null;
+      let socket = null;
+      let playerToken = null;
+      let pendingSource = "";
+      let lastCompletedWord = "";
+      let leavingRoom = false;
       const stableFrameThreshold = 20;
       const releaseFrameThreshold = 8;
       const mediaPipeVersion = "0.10.14";
       const mediaPipeWasm = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${mediaPipeVersion}/wasm`;
       const handLandmarkerModel = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
-      let accepted = "";
       const acceptedSources = [];
-      let currentPlayer = 0;
 
-      const letterSlots = [...document.querySelectorAll(".letter")];
       const select = document.querySelector("#prediction");
       const simulateButton = document.querySelector("#simulate");
       const retryButton = document.querySelector("#retry");
       const confirmButton = document.querySelector("#confirm");
       const resetButton = document.querySelector("#reset");
+      const createForm = document.querySelector("#create-form");
+      const joinForm = document.querySelector("#join-form");
       const notice = document.querySelector("#notice");
       const cameraPreview = document.querySelector("#camera-preview");
       const cameraStart = document.querySelector("#camera-start");
       const cameraStop = document.querySelector("#camera-stop");
       const cameraStatus = document.querySelector("#camera-status");
+      const videoShareStart = document.querySelector("#video-share-start");
+      const videoShareStop = document.querySelector("#video-share-stop");
+      const videoShareStatus = document.querySelector("#video-share-status");
+      const remoteVideo = document.querySelector("#remote-video");
+      const remoteVideoPlaceholder = document.querySelector("#remote-video-placeholder");
+      const localMediaPanel = document.querySelector("#local-media-panel");
+      const remoteVideoPreview = document.querySelector("#remote-video-preview");
       const livePrediction = document.querySelector("#live-prediction");
       const predictionDetail = document.querySelector("#prediction-detail");
+      const lobbyError = document.querySelector("#lobby-error");
+      const menuScreen = document.querySelector("#menu-screen");
+      const waitingScreen = document.querySelector("#waiting-screen");
+      const gameScreen = document.querySelector("#game-screen");
       const inferenceCanvas = document.createElement("canvas");
       const inferenceContext = inferenceCanvas.getContext("2d");
       let cameraStream = null;
+      let videoShareStream = null;
+      let peerConnection = null;
+      let queuedIceCandidates = [];
+      let offerStarted = false;
       let handLandmarker = null;
       let classifierSession = null;
       let classLabels = null;
@@ -311,37 +439,442 @@
       let lastInferenceAt = 0;
       let processingFrame = false;
 
-      function render() {
-        letterSlots.forEach((slot, index) => {
-          const value = accepted[index] || "?";
-          slot.textContent = value;
-          slot.classList.toggle("filled", Boolean(accepted[index]));
-        });
-        document.querySelector("#letters").setAttribute("aria-label", `${target}, ${accepted.length ? `confirmed letters ${[...accepted].join(", ")}` : "no letters confirmed yet"}`);
-        document.querySelector("#player-one").classList.toggle("active", currentPlayer === 0 && accepted.length < target.length);
-        document.querySelector("#player-two").classList.toggle("active", currentPlayer === 1 && accepted.length < target.length);
-        document.querySelector("#tag-one").hidden = currentPlayer !== 0 || accepted.length === target.length;
-        document.querySelector("#tag-two").hidden = currentPlayer !== 1 || accepted.length === target.length;
-        document.querySelector("#turn-copy").textContent = accepted.length === target.length
-          ? "Word complete!"
-          : `Player ${currentPlayer + 1} signs the ${["first", "second", "third"][accepted.length]} letter`;
+      createForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const name = document.querySelector("#create-name").value.trim();
+        localStorage.setItem("signsync:last-name", name);
+        leavingRoom = false;
+        showLobbyError("");
+        connectAndSend({ type: "room:create", name });
+      });
 
-        const complete = accepted === target;
-        const score = complete ? scorePerWord : 0;
-        document.querySelector("#score").textContent = score;
-        document.querySelector(".progress").setAttribute("aria-valuenow", String(score));
-        document.querySelector("#progress").style.width = `${score / 5}%`;
-        document.querySelector("#image-copy").textContent = complete ? "CAT complete!" : "A picture will appear after the word.";
-        document.querySelector("#image-caption").textContent = complete
-          ? "Illustrative placeholder · mock image, not AI-generated"
-          : "Illustration only · no image service connected";
-        simulateButton.disabled = complete || Boolean(cameraStream);
-        select.disabled = !select.value || complete || Boolean(cameraStream);
-        retryButton.disabled = !select.value || complete;
-        confirmButton.disabled = !select.value || complete;
+      joinForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const name = document.querySelector("#join-name").value.trim();
+        const code = document.querySelector("#join-code").value.trim().toUpperCase();
+        localStorage.setItem("signsync:last-name", name);
+        leavingRoom = false;
+        showLobbyError("");
+        connectAndSend({
+          type: "room:join",
+          name,
+          code,
+        });
+      });
+
+      document.querySelector("#join-code").addEventListener("input", (event) => {
+        event.target.value = event.target.value.toUpperCase().replace(/[^A-HJ-NP-Z2-9]/g, "").slice(0, 6);
+      });
+
+      document.querySelector("#copy-invite").addEventListener("click", async () => {
+        if (!roomState) return;
+        const invite = new URL(location.href);
+        invite.searchParams.set("room", roomState.code);
+        try {
+          await navigator.clipboard.writeText(invite.href);
+          document.querySelector("#copy-invite").textContent = "Copied!";
+        } catch {
+          window.prompt("Copy this invite link:", invite.href);
+          document.querySelector("#copy-invite").textContent = "Room code: " + roomState.code;
+        }
+        setTimeout(() => {
+          document.querySelector("#copy-invite").textContent = "Copy invite";
+        }, 1800);
+      });
+
+      videoShareStart.addEventListener("click", startVideoShare);
+      videoShareStop.addEventListener("click", stopVideoShare);
+
+      function returnToMenu() {
+        if (cameraStream) stopCamera();
+        stopVideoShare();
+        const code = roomState?.code;
+        if (code) sessionStorage.removeItem(`signsync:${code}:token`);
+        if (socket?.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: "game:leave" }));
+          socket.close();
+        }
+        socket = null;
+        roomState = null;
+        playerSlot = null;
+        playerToken = null;
+        leavingRoom = true;
+        menuScreen.hidden = false;
+        waitingScreen.hidden = true;
+        gameScreen.hidden = true;
+        document.querySelector("#site-status").textContent = "Multiplayer · make a room";
+        const url = new URL(location.href);
+        url.searchParams.delete("room");
+        history.replaceState(null, "", url);
+        showLobbyError("");
+      }
+
+      document.querySelector("#cancel-room").addEventListener("click", returnToMenu);
+      document.querySelector("#leave-room").addEventListener("click", returnToMenu);
+
+      function showLobbyError(message = "") {
+        lobbyError.textContent = message;
+      }
+
+      function connectAndSend(payload) {
+        if (socket?.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify(payload));
+          return;
+        }
+        if (socket?.readyState === WebSocket.CONNECTING) {
+          socket.addEventListener("open", () => socket.send(JSON.stringify(payload)), { once: true });
+          return;
+        }
+        const scheme = location.protocol === "https:" ? "wss:" : "ws:";
+        socket = new WebSocket(`${scheme}//${location.host}`);
+        socket.addEventListener("open", () => {
+          document.querySelector("#game-connection").textContent = "Connected";
+          socket.send(JSON.stringify(payload));
+        }, { once: true });
+        socket.addEventListener("message", handleSocketMessage);
+        socket.addEventListener("close", () => {
+          document.querySelector("#game-connection").textContent = "Disconnected";
+          stopVideoShare(false);
+          if (leavingRoom) return;
+          document.querySelector("#site-status").textContent = "Connection lost";
+          if (roomState && !leavingRoom) {
+            document.querySelector("#waiting-status").textContent = "Connection lost. Refresh the page to reconnect to this room.";
+          }
+        });
+        socket.addEventListener("error", () => {
+          showLobbyError("Could not connect to the game server. Open this page from the SignSync server and try again.");
+        });
+      }
+
+      function setVideoShareStatus(message) {
+        videoShareStatus.textContent = message;
+      }
+
+      function sendVideoSignal(signal) {
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+          setVideoShareStatus("Video signaling disconnected. Rejoin the room to reconnect.");
+          return;
+        }
+        socket.send(JSON.stringify({ type: "video:signal", signal }));
+      }
+
+      function createPeerConnection() {
+        if (peerConnection) return peerConnection;
+        peerConnection = new RTCPeerConnection({
+          iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+        });
+        for (const track of videoShareStream.getVideoTracks()) {
+          peerConnection.addTrack(track, videoShareStream);
+        }
+        peerConnection.addEventListener("icecandidate", (event) => {
+          if (event.candidate) sendVideoSignal({ type: "candidate", candidate: event.candidate.toJSON() });
+        });
+        peerConnection.addEventListener("track", (event) => {
+          remoteVideo.srcObject = event.streams[0] || new MediaStream([event.track]);
+          remoteVideo.hidden = false;
+          remoteVideoPlaceholder.hidden = true;
+          remoteVideo.play().catch(() => {});
+          setVideoShareStatus("Live video is connected peer-to-peer.");
+        });
+        peerConnection.addEventListener("connectionstatechange", () => {
+          if (!peerConnection) return;
+          if (peerConnection.connectionState === "connected") {
+            setVideoShareStatus("Live video is connected peer-to-peer.");
+          } else if (peerConnection.connectionState === "failed") {
+            setVideoShareStatus("Could not establish a direct video connection. Your room still works; try both devices on the same network.");
+          } else if (peerConnection.connectionState === "disconnected") {
+            setVideoShareStatus("Video connection interrupted. Waiting for the peer to reconnect…");
+          }
+        });
+        return peerConnection;
+      }
+
+      async function flushIceCandidates() {
+        if (!peerConnection?.remoteDescription) return;
+        const candidates = queuedIceCandidates;
+        queuedIceCandidates = [];
+        for (const candidate of candidates) {
+          await peerConnection.addIceCandidate(candidate);
+        }
+      }
+
+      async function maybeCreateOffer() {
+        if (
+          playerSlot !== 0
+          || !videoShareStream
+          || !roomState?.players[1]?.videoSharing
+          || offerStarted
+        ) return;
+        const connection = createPeerConnection();
+        offerStarted = true;
+        try {
+          const offer = await connection.createOffer();
+          await connection.setLocalDescription(offer);
+          sendVideoSignal({ type: "offer", sdp: offer.sdp });
+          setVideoShareStatus("Calling your friend’s video…");
+        } catch (error) {
+          offerStarted = false;
+          setVideoShareStatus(`Could not start video sharing: ${error.message || "WebRTC error"}`);
+        }
+      }
+
+      async function handleVideoSignal(signal, fromSlot) {
+        if (!videoShareStream || fromSlot !== 1 - playerSlot) return;
+        const connection = createPeerConnection();
+        try {
+          if (signal.type === "offer" && playerSlot === 1) {
+            await connection.setRemoteDescription({ type: "offer", sdp: signal.sdp });
+            await flushIceCandidates();
+            const answer = await connection.createAnswer();
+            await connection.setLocalDescription(answer);
+            sendVideoSignal({ type: "answer", sdp: answer.sdp });
+          } else if (signal.type === "answer" && playerSlot === 0) {
+            await connection.setRemoteDescription({ type: "answer", sdp: signal.sdp });
+            await flushIceCandidates();
+          } else if (signal.type === "candidate") {
+            if (signal.candidate) {
+              if (connection.remoteDescription) await connection.addIceCandidate(signal.candidate);
+              else queuedIceCandidates.push(signal.candidate);
+            }
+          }
+        } catch (error) {
+          setVideoShareStatus(`Video connection failed: ${error.message || "WebRTC error"}`);
+        }
+      }
+
+      async function startVideoShare() {
+        if (!roomState || !socket || socket.readyState !== WebSocket.OPEN) {
+          setVideoShareStatus("Join a room before sharing video.");
+          return;
+        }
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setVideoShareStatus("Video sharing requires HTTPS (or localhost) and a supported browser.");
+          return;
+        }
+        if (!window.RTCPeerConnection) {
+          setVideoShareStatus("Peer-to-peer video is not supported in this browser.");
+          return;
+        }
+        videoShareStart.disabled = true;
+        setVideoShareStatus("Requesting camera permission for live video. Your stream will go directly to your room partner.");
+        try {
+          videoShareStream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: { facingMode: "user" },
+          });
+          videoShareStart.hidden = true;
+          videoShareStop.hidden = false;
+          socket.send(JSON.stringify({ type: "video:ready" }));
+          setVideoShareStatus(roomState.players[1 - playerSlot]?.videoSharing
+            ? "Connecting directly to your friend…"
+            : "Video is shared only after your friend enables their camera too.");
+          await maybeCreateOffer();
+        } catch (error) {
+          videoShareStream?.getTracks().forEach((track) => track.stop());
+          videoShareStream = null;
+          videoShareStart.disabled = false;
+          const messages = {
+            NotAllowedError: "Camera permission was denied. Allow camera access, then try again.",
+            NotFoundError: "No camera was found on this device.",
+            NotReadableError: "The camera is already in use or could not be started.",
+          };
+          setVideoShareStatus(messages[error.name] || `Could not start video sharing: ${error.message || "unknown error"}`);
+        }
+      }
+
+      function closePeerConnection() {
+        peerConnection?.close();
+        peerConnection = null;
+        offerStarted = false;
+        queuedIceCandidates = [];
+        remoteVideo.srcObject = null;
+        remoteVideo.hidden = true;
+        remoteVideoPlaceholder.hidden = false;
+      }
+
+      function stopVideoShare(notifyServer = true) {
+        if (notifyServer && videoShareStream && socket?.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: "video:stop" }));
+        }
+        closePeerConnection();
+        videoShareStream?.getTracks().forEach((track) => track.stop());
+        videoShareStream = null;
+        videoShareStart.hidden = false;
+        videoShareStart.disabled = false;
+        videoShareStop.hidden = true;
+        setVideoShareStatus("Video is private until you choose to share it.");
+      }
+
+      function handleSocketMessage(event) {
+        let message;
+        try {
+          message = JSON.parse(event.data);
+        } catch {
+          showLobbyError("The game server sent an unreadable message.");
+          return;
+        }
+        if (message.type === "error") {
+          showLobbyError(message.message || "The server rejected that request.");
+          document.querySelector("#notice").textContent = message.message || "The server rejected that request.";
+          if (message.message?.toLowerCase().includes("video")) setVideoShareStatus(message.message);
+          return;
+        }
+        showLobbyError("");
+        if (message.type === "room:joined") {
+          playerSlot = message.player.slot;
+          playerToken = message.player.token;
+          sessionStorage.setItem(`signsync:${message.room.code}:token`, playerToken);
+          localStorage.setItem(`signsync:${message.room.code}:name`, message.player.name);
+          const url = new URL(location.href);
+          url.searchParams.set("room", message.room.code);
+          history.replaceState(null, "", url);
+        }
+        if (message.type === "letter:accepted" && message.completedWord) {
+          lastCompletedWord = message.completedWord;
+        }
+        if (message.type === "video:peer-ready") {
+          setVideoShareStatus("Your friend enabled video. Connecting directly…");
+          maybeCreateOffer();
+        } else if (message.type === "video:signal") {
+          handleVideoSignal(message.signal, message.fromSlot);
+        } else if (message.type === "video:peer-left") {
+          stopVideoShare(false);
+          setVideoShareStatus("Your friend stopped sharing video.");
+        }
+        if (message.room) {
+          roomState = message.room;
+          target = roomState.target;
+          accepted = roomState.letters;
+          currentPlayer = roomState.currentPlayer;
+          updateRoomUI(message);
+        }
+        if (message.type === "letter:accepted") {
+          const localLetter = message.room.players[playerSlot]?.name || "A player";
+          const completion = message.completedWord
+            ? ` Together you completed ${message.completedWord}! 100 points added.`
+            : "";
+          document.querySelector("#notice").textContent = `${localLetter} confirmed ${message.accepted}.${completion}`;
+        } else if (message.type === "game:started") {
+          document.querySelector("#notice").textContent = "Both players are connected. The two-minute round is on!";
+        } else if (message.type === "game:completed") {
+          document.querySelector("#notice").textContent = roomState.completedReason === "score"
+            ? "You reached 500 team points. Great teamwork!"
+            : "Time is up. Great teamwork!";
+        }
+      }
+
+      function updateRoomUI(message = {}) {
+        if (!roomState) return;
+        const joined = roomState.players[playerSlot];
+        const waiting = roomState.status === "waiting";
+        menuScreen.hidden = true;
+        waitingScreen.hidden = !waiting;
+        gameScreen.hidden = waiting;
+        const connectedPlayers = roomState.players.filter((player) => player?.connected).length;
+        document.querySelector("#site-status").textContent = `Room ${roomState.code} · ${connectedPlayers}/2 players`;
+        document.querySelector("#room-code").textContent = roomState.code;
+        document.querySelector("#game-room-code").textContent = roomState.code;
+        document.querySelector("#game-connection").textContent = socket?.readyState === WebSocket.OPEN ? "Connected" : "Reconnecting…";
+        document.querySelector("#waiting-status").textContent = roomState.players.every((player) => player?.connected)
+          ? "Both players connected. Starting your round…"
+          : "Waiting for another player to join…";
+        document.querySelector("#lobby-players").replaceChildren(...roomState.players.map((player, index) => {
+          const item = document.createElement("div");
+          item.className = "room-player";
+          const name = document.createElement("strong");
+          name.textContent = player?.name || `Player ${index + 1}`;
+          const state = document.createElement("span");
+          state.className = player?.connected ? "status-live" : "status-away";
+          state.textContent = player?.connected ? "Connected" : "Waiting to join";
+          item.append(name, state);
+          return item;
+        }));
+
+        for (let index = 0; index < 2; index += 1) {
+          const player = roomState.players[index];
+          const playerId = index === 0 ? "one" : "two";
+          document.querySelector(`#player-${index === 0 ? "one" : "two"}-name`).textContent =
+            player?.name || `Player ${index + 1}`;
+          document.querySelector(`#connection-${playerId}`).classList.toggle("online", Boolean(player?.connected));
+          document.querySelector(`#connection-${playerId}-text`).textContent = player?.connected ? "Connected" : "Waiting";
+        }
+        const localPlayerPanel = document.querySelector(playerSlot === 0 ? "#player-one" : "#player-two");
+        const remotePlayerPanel = document.querySelector(playerSlot === 0 ? "#player-two" : "#player-one");
+        localPlayerPanel.append(localMediaPanel);
+        remotePlayerPanel.append(remoteVideoPreview);
+        const otherPlayer = roomState.players[1 - playerSlot];
+        if (!otherPlayer?.videoSharing && peerConnection) {
+          stopVideoShare(false);
+          setVideoShareStatus(otherPlayer?.connected
+            ? "Your friend stopped sharing video."
+            : "Your friend disconnected; video sharing stopped.");
+        }
+        document.querySelector("#remote-player-status").textContent = otherPlayer?.connected
+          ? otherPlayer.videoSharing
+            ? `${otherPlayer.name} is sharing video. Connecting…`
+            : `${otherPlayer.name} is connected. Ask them to enable video sharing.`
+          : "Waiting for your friend to join the room.";
+        if (videoShareStream && otherPlayer?.videoSharing) {
+          maybeCreateOffer();
+        }
+        document.querySelector(".timer").textContent = `${String(Math.floor(roomState.secondsRemaining / 60)).padStart(2, "0")}:${String(roomState.secondsRemaining % 60).padStart(2, "0")}`;
+        document.querySelector("#score").textContent = roomState.score;
+        document.querySelector(".progress").setAttribute("aria-valuenow", String(roomState.score));
+        document.querySelector("#progress").style.width = `${roomState.score / 5}%`;
+        document.querySelector("#target-word").textContent = target;
+        const slots = [...target].map((letter, index) => {
+          const slot = document.createElement("span");
+          const confirmed = roomState.letters[index];
+          slot.className = `letter${confirmed ? " filled" : ""}`;
+          slot.textContent = confirmed || "?";
+          slot.setAttribute("aria-label", confirmed ? `Confirmed ${confirmed}` : `Letter ${index + 1}`);
+          return slot;
+        });
+        document.querySelector("#letters").replaceChildren(...slots);
+        document.querySelector("#letters").setAttribute("aria-label", `${target}, ${roomState.letters ? `confirmed letters ${[...roomState.letters].join(", ")}` : "no letters confirmed yet"}`);
+        const complete = roomState.status === "complete";
+        const isMyTurn = roomState.status === "playing" && playerSlot === roomState.currentPlayer;
+        document.querySelector("#player-one").classList.toggle("active", roomState.currentPlayer === 0 && !complete);
+        document.querySelector("#player-two").classList.toggle("active", roomState.currentPlayer === 1 && !complete);
+        for (let index = 0; index < 2; index += 1) {
+          const tag = document.querySelector(`#tag-${index === 0 ? "one" : "two"}`);
+          tag.hidden = roomState.currentPlayer !== index || complete;
+          tag.textContent = index === playerSlot ? "YOUR TURN" : "OTHER PLAYER’S TURN";
+        }
+        document.querySelector("#turn-copy").textContent = complete
+          ? "Round complete!"
+          : roomState.status === "waiting"
+            ? "Waiting for both players"
+            : `${roomState.players[roomState.currentPlayer]?.name || "Player"} signs letter ${roomState.letters.length + 1}`;
+        document.querySelector("#image-copy").textContent = lastCompletedWord
+          ? `${lastCompletedWord} complete!`
+          : "Complete a word to reveal it.";
+        document.querySelector("#image-caption").textContent = lastCompletedWord
+          ? "Illustrative placeholder · no image service connected"
+          : "Shared placeholder · no image service connected";
+        const gameOver = document.querySelector("#game-over");
+        gameOver.classList.toggle("visible", complete);
+        gameOver.textContent = complete
+          ? roomState.completedReason === "score"
+            ? `You reached ${roomState.score} team points in ${roomState.wordsCompleted} words!`
+            : `Time is up · ${roomState.score} team points across ${roomState.wordsCompleted} words.`
+          : "";
+        simulateButton.disabled = !isMyTurn || Boolean(cameraStream) || Boolean(currentPrediction);
+        select.disabled = !select.value || !isMyTurn || Boolean(cameraStream) || complete;
+        retryButton.disabled = !select.value || !isMyTurn || complete;
+        confirmButton.disabled = !select.value || !isMyTurn || complete;
+        resetButton.hidden = true;
+        if (message.type === "room:joined" && joined && roomState.players.filter(Boolean).length === 1) {
+          document.querySelector("#waiting-status").textContent = "Room created. Share the code with one friend.";
+        }
+      }
+
+      function render() {
+        if (roomState) updateRoomUI();
       }
 
       simulateButton.addEventListener("click", () => {
+        if (!roomState || roomState.currentPlayer !== playerSlot) return;
         select.value = target[accepted.length];
         currentPrediction = select.value;
         predictionSource = "simulated";
@@ -385,58 +918,36 @@
       });
 
       confirmButton.addEventListener("click", () => {
+        if (!roomState || !socket || socket.readyState !== WebSocket.OPEN) {
+          document.querySelector("#notice").textContent = "You need to be connected to a room to confirm a letter.";
+          return;
+        }
         const expected = target[accepted.length];
         if (select.value !== expected) {
           notice.textContent = `Not the expected letter for this demo step. Expected ${expected}; retry the prediction.`;
           return;
         }
         const confirmedLetter = select.value;
-        const confirmedSource = predictionSource;
-        accepted += select.value;
-        acceptedSources.push(confirmedSource);
+        pendingSource = predictionSource;
         select.value = "";
         currentPrediction = "";
         predictionSource = "";
-        predictionScore = null;
-        if (confirmedSource === "camera") {
+        if (pendingSource === "camera") {
           waitingForRelease = true;
           livePrediction.textContent = "—";
           predictionDetail.textContent = "Release your hand to re-arm";
         }
-        if (accepted === target) {
-          const recognizedCount = acceptedSources.filter((source) => source === "camera").length;
-          const simulatedCount = acceptedSources.length - recognizedCount;
-          notice.textContent = `CAT complete! ${recognizedCount} letter${recognizedCount === 1 ? "" : "s"} browser-recognized, ${simulatedCount} simulated. Demo score: ${scorePerWord} points. The picture is illustrative, not AI-generated.`;
-          notice.classList.add("completed");
-        } else {
-          currentPlayer = 1 - currentPlayer;
-          notice.textContent = `${confirmedLetter} ${confirmedSource === "camera" ? "recognized in this browser and" : "simulated and"} confirmed. Player ${currentPlayer + 1}, your local turn.`;
-        }
+        socket.send(JSON.stringify({
+          type: "letter:confirm",
+          letter: confirmedLetter,
+          actionId: crypto.randomUUID(),
+        }));
+        notice.textContent = "Sending your confirmed letter to the room…";
         render();
       });
 
       resetButton.addEventListener("click", () => {
-        accepted = "";
-        acceptedSources.length = 0;
-        currentPlayer = 0;
-        select.value = "";
-        currentPrediction = "";
-        predictionSource = "";
-        predictionScore = null;
-        waitingForRelease = Boolean(cameraStream);
-        releaseCount = 0;
-        stableCount = 0;
-        lastStableLabel = "";
-        livePrediction.textContent = "—";
-        predictionDetail.textContent = waitingForRelease ? "Release your hand to re-arm" : "No stable handshape yet";
-        notice.textContent = "Demo reset. Player 1 starts with C.";
-        notice.classList.remove("completed");
-        render();
-        if (cameraStream) {
-          cameraStop.focus();
-        } else {
-          simulateButton.focus();
-        }
+        showLobbyError("The server owns multiplayer round state. Leave the room to start over.");
       });
 
       async function loadRecognition() {
@@ -666,7 +1177,22 @@
 
       window.addEventListener("pagehide", stopCamera);
 
-      render();
+      const rememberedName = localStorage.getItem("signsync:last-name") || "";
+      document.querySelector("#create-name").value = rememberedName;
+      document.querySelector("#join-name").value = rememberedName;
+      const inviteCode = new URL(location.href).searchParams.get("room");
+      if (inviteCode) {
+        document.querySelector("#join-code").value = inviteCode.toUpperCase();
+        const reconnectToken = sessionStorage.getItem(`signsync:${inviteCode.toUpperCase()}:token`);
+        if (reconnectToken) {
+          connectAndSend({
+            type: "room:join",
+            name: rememberedName,
+            code: inviteCode,
+            token: reconnectToken,
+          });
+        }
+      }
     })();
   </script>
 </body>

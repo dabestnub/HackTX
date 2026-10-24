@@ -1,0 +1,25 @@
+{
+  "name": "syncsign",
+  "version": "1.0.0",
+  "description": "SignSync is a collaborative two-player game where players alternate signing ASL fingerspelling letters, complete words together, generate shared AI imagery, and earn points against a two-minute timer.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dabestnub/HackTX.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/dabestnub/HackTX/issues"
+  },
+  "homepage": "https://github.com/dabestnub/HackTX#readme",
+  "dependencies": {
+    "ws": "^8.22.0"
+  }
+}
