@@ -19,7 +19,7 @@ npm install
 npm start
 ```
 
-Then open `http://localhost:8000` in two browser windows/devices. A hosted deployment needs a Node-capable host that supports WebSocket upgrades, HTTPS/WSS, and a proxy configured to forward WebSocket connections. Camera access requires HTTPS on hosted sites (localhost is allowed for local testing).
+Then open `http://127.0.0.1:8000` in two browser windows/devices. A hosted deployment needs a Node-capable host that supports WebSocket upgrades, HTTPS/WSS, and a proxy configured to forward WebSocket connections. Camera access requires HTTPS on hosted sites (localhost is allowed for local testing).
 
 The visual refresh applies the [UI UX Pro Max guidance](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill): semantic design tokens, stronger type and content hierarchy, restrained surfaces and shadows, responsive reflow, visible keyboard focus, and reduced-motion support. The skill is design guidance only; the site does not depend on its runtime or tooling.
 
