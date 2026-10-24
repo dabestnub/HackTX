@@ -9,7 +9,12 @@ const PORT = Number(process.env.PORT || 8000);
 const ROUND_SECONDS = 120;
 const SCORE_PER_WORD = 100;
 const WIN_SCORE = 500;
-const WORDS = ["CAT", "DOG", "SUN", "HAT", "HOME", "LOVE"];
+const WORDS = [
+  "CAT", "DOG", "SUN", "HAT", "HOME", "LOVE", "BIRD", "FISH", "TREE", "BOOK",
+  "MOON", "STAR", "RAIN", "WIND", "LEAF", "BEAR", "FROG", "DUCK", "BOAT", "SHIP",
+  "CAKE", "MILK", "PEAR", "APPLE", "BREAD", "SMILE", "HAPPY", "LIGHT", "GREEN", "BLUE",
+  "RED", "GOLD", "HAND", "WAVE", "PLAY", "SONG", "DREAM", "CLOUD", "WATER", "EARTH",
+];
 const PUBLIC_FILES = new Set([
   "/index.html",
   "/assets/asl_classes.json",
@@ -41,7 +46,7 @@ function makeRoom() {
     players: [null, null],
     status: "waiting",
     currentPlayer: 0,
-    wordIndex: 0,
+    target: randomWord(),
     letters: "",
     score: 0,
     wordsCompleted: 0,
@@ -55,8 +60,9 @@ function makeRoom() {
   return room;
 }
 
-function currentWord(room) {
-  return WORDS[room.wordIndex % WORDS.length];
+function randomWord(previous) {
+  const choices = WORDS.filter((word) => word !== previous);
+  return choices[crypto.randomInt(choices.length)];
 }
 
 function roomSnapshot(room) {
@@ -72,7 +78,7 @@ function roomSnapshot(room) {
       videoSharing: player.videoReady,
     })),
     currentPlayer: room.currentPlayer,
-    target: currentWord(room),
+    target: room.target,
     letters: room.letters,
     score: room.score,
     wordsCompleted: room.wordsCompleted,
@@ -219,7 +225,7 @@ function handleLetter(socket, message) {
   if (typeof message.letter !== "string" || !/^[A-Z]$/.test(message.letter)) {
     return fail(socket, "Send one uppercase letter.");
   }
-  const word = currentWord(room);
+  const word = room.target;
   if (message.letter !== word[room.letters.length]) {
     return fail(socket, "That letter does not match the next letter in this practice word.");
   }
@@ -234,7 +240,7 @@ function handleLetter(socket, message) {
     completedWord = word;
     room.wordsCompleted += 1;
     room.score = Math.min(WIN_SCORE, room.score + SCORE_PER_WORD);
-    room.wordIndex += 1;
+    room.target = randomWord(word);
     room.letters = "";
   }
   if (room.score >= WIN_SCORE) finishRoom(room, "score");

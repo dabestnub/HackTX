@@ -88,6 +88,18 @@ test("two players share authoritative turns, words, and team score", async (t) =
   assert.equal((await fetch(`http://127.0.0.1:${port}/`)).status, 200);
   assert.equal((await fetch(`http://127.0.0.1:${port}/package.json`)).status, 404);
 
+  const initialWords = new Set();
+  for (let i = 0; i < 12; i += 1) {
+    const client = await connect(port);
+    clients.push(client);
+    send(client, { type: "room:create", name: "Word test" });
+    const created = await client.next((message) => message.type === "room:joined");
+    assert.match(created.room.target, /^[A-Z]{3,5}$/);
+    initialWords.add(created.room.target);
+    send(client, { type: "game:leave" });
+  }
+  assert.ok(initialWords.size > 1, "new rooms should not always start with the same word");
+
   const creator = await connect(port);
   clients.push(creator);
   const created = creator.next((message) => message.type === "room:joined");
@@ -99,7 +111,8 @@ test("two players share authoritative turns, words, and team score", async (t) =
   clients.push(partner);
   const joined = partner.next((message) => message.type === "room:joined");
   send(partner, { type: "room:join", code: room.room.code, name: "Sam" });
-  await joined;
+  const partnerRoom = await joined;
+  assert.equal(partnerRoom.room.target, room.room.target);
   const readySignals = Promise.all([
     creator.next((message) => message.type === "video:peer-ready"),
     partner.next((message) => message.type === "video:peer-ready"),
@@ -144,52 +157,55 @@ test("two players share authoritative turns, words, and team score", async (t) =
     name: "Alex",
     token: room.player.token,
   });
-  await restored;
+  const restoredRoom = await restored;
+  assert.equal(restoredRoom.room.target, room.room.target);
   await resumed;
 
   const invalidTurn = partner.next((message) => message.type === "error");
   send(partner, { type: "letter:confirm", actionId: "0000000000000001", letter: "C" });
   assert.match((await invalidTurn).message, /other player's turn/i);
 
+  const wrongLetter = room.room.target[0] === "A" ? "B" : "A";
+  send(reconnected, { type: "letter:confirm", actionId: "0000000000000099", letter: wrongLetter });
+  assert.match((await reconnected.next((message) => message.type === "error")).message, /does not match/i);
+  const firstLetter = room.room.target[0];
   const firstAccepted = Promise.all([
     reconnected.next((message) => message.type === "letter:accepted"),
     partner.next((message) => message.type === "letter:accepted"),
   ]);
-  send(reconnected, { type: "letter:confirm", actionId: "0000000000000002", letter: "C" });
+  send(reconnected, { type: "letter:confirm", actionId: "0000000000000002", letter: firstLetter });
   await firstAccepted;
 
-  const duplicateUpdate = reconnected.next((message) => message.type === "room:updated" && message.room.letters === "C");
-  send(reconnected, { type: "letter:confirm", actionId: "0000000000000002", letter: "C" });
-  assert.equal((await duplicateUpdate).room.letters, "C");
+  const duplicateUpdate = reconnected.next((message) => message.type === "room:updated" && message.room.letters === firstLetter);
+  send(reconnected, { type: "letter:confirm", actionId: "0000000000000002", letter: firstLetter });
+  assert.equal((await duplicateUpdate).room.letters, firstLetter);
 
-  let currentSlot = 1;
+  let state = (await firstAccepted)[0].room;
   let actionNumber = 3;
-  const words = ["CAT", "DOG", "SUN", "HAT", "HOME"];
-  for (const word of words) {
-    for (const letter of word.slice(word === "CAT" ? 1 : 0)) {
-      const actor = currentSlot === 0 ? reconnected : partner;
-      const actionId = actionNumber.toString(16).padStart(16, "0");
-      actionNumber += 1;
-      if (word === "HOME" && letter === "E") {
-        const completed = Promise.all([
-          reconnected.next((message) => message.type === "game:completed"),
-          partner.next((message) => message.type === "game:completed"),
-        ]);
-        send(actor, { type: "letter:confirm", actionId, letter });
-        const results = await completed;
-        for (const result of results) {
-          assert.equal(result.room.score, 500);
-          assert.equal(result.room.completedReason, "score");
-        }
-      } else {
-        const accepted = Promise.all([
-          reconnected.next((message) => message.type === "letter:accepted"),
-          partner.next((message) => message.type === "letter:accepted"),
-        ]);
-        send(actor, { type: "letter:confirm", actionId, letter });
-        await accepted;
-      }
-      currentSlot = 1 - currentSlot;
+  while (state.status !== "complete") {
+    const word = state.target;
+    const actor = state.currentPlayer === 0 ? reconnected : partner;
+    const letter = word[state.letters.length];
+    const completesWord = state.letters.length === word.length - 1;
+    const type = completesWord && state.score === 400 ? "game:completed" : "letter:accepted";
+    const updates = Promise.all([
+      reconnected.next((message) => message.type === type),
+      partner.next((message) => message.type === type),
+    ]);
+    send(actor, { type: "letter:confirm", actionId: (actionNumber++).toString(16).padStart(16, "0"), letter });
+    const [first, second] = await updates;
+    assert.deepEqual(first.room, second.room);
+    assert.equal(first.room.score, state.score + (completesWord ? 100 : 0));
+    if (completesWord) {
+      assert.notEqual(first.room.target, word, "consecutive words must differ");
+      assert.equal(first.room.letters, "");
+    } else {
+      assert.equal(first.room.target, word);
+      assert.equal(first.room.letters, state.letters + letter);
     }
+    state = first.room;
   }
+  assert.equal(state.score, 500);
+  assert.equal(state.wordsCompleted, 5);
+  assert.equal(state.completedReason, "score");
 });
