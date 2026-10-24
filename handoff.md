@@ -1,12 +1,13 @@
 # ASL Co-op Game Backend: PRD and Handoff
 
-Last updated 2026-10-24, during HackTX weekend. Written at the end of a requirements interview with the backend owner.
+Last updated 2026-10-24, during HackTX weekend. Written at the end of a requirements interview with the backend owner. Section 16 tracks build progress and is updated after every implemented task.
 
 ## How to use this document
 
 - Read it fully before writing any code. The project folder held nothing but this file when it was written.
 - Section 4 lists confirmed decisions. Do not reopen them unless the user does.
 - Section 12 records the round 2 answers (confirmed 2026-10-24). The implementation plan is `docs/superpowers/plans/2026-10-24-asl-coop-backend.md`.
+- Section 16 is the live build status: which tasks are done, their commits, and decisions made during the build. The code is on branch `backend-shit` of https://github.com/dabestnub/HackTX.
 - Do not commit the saved ChatGPT page ("Research ASL Models.html") if it shows up in this folder. It embeds a live ChatGPT session access token.
 
 ## 1. Product
@@ -205,20 +206,46 @@ Other facts from round 2: the user has run the repo's app and it works. They hav
 - **Muse cost.** Muse needs a paid key with no confirmed free tier. Costs are tiny at one cent per image.
 - **Timer pressure.** 10 seconds for a 5-letter word leaves 7 seconds of slack beyond the 3 seconds of holds. Tune `TIME_LIMIT` after the first camera test if needed.
 
-## 14. Suggested build order
+## 14. Build order
 
-1. ~~Resolve section 12 with the user and update this file.~~ Done 2026-10-24.
-2. Scaffold the project with uv and Python 3.12. Clone the repo, export the weights to numpy, and add the parity test.
-3. Recognizer module: decode, flip, MediaPipe, features, network, acceptance rule.
-4. Game engine as pure logic, plus its tests.
-5. FastAPI app: WebSocket protocol, rooms, reconnect, image endpoint.
-6. Muse client with the fallback word list and the placeholder image.
-7. `docs/protocol.md` for the teammate. Hand it over early, even before step 5 is finished.
-8. /dev test page, then a camera test over the SSH tunnel.
-9. Dockerfile and fly.toml, deploy, set the secret, scale to one machine, and run a camera test on the HTTPS URL.
+Superseded by the 13-task plan in `docs/superpowers/plans/2026-10-24-asl-coop-backend.md`. Progress is in section 16.
 
 ## 15. Environment facts (dev server)
 
 - The dev server is a remote x86_64 machine running Ubuntu 22.04, with 4 NVIDIA GPUs, no webcam, and no `/dev/video*`.
 - Its Python is 3.13.9 from miniconda. cv2 4.13 and numpy 2.3 are installed. fastapi, uvicorn, websockets, torch, and mediapipe are not.
-- `uv` 0.13.4 and `pip` are available. Docker is installed, but daemon access is untested. flyctl is not installed.
+- `uv` 0.13.4 and `pip` are available. Docker is installed and the daemon is reachable. flyctl is not installed.
+- The project uses a uv-managed CPython 3.12.15. mediapipe 1.1.1 installs on it and brings opencv-contrib-python 5.0; do not add another OpenCV wheel. A blank 640x480 frame takes about 17 ms in HandLandmarker on this CPU.
+- Git: commits are authored as `kevnlin`, and pushes use `~/.ssh/id_ed25519_kevnlin` (set in the repo's `core.sshCommand`). The machine's default key and global identity belong to someone else.
+
+## 16. Implementation status
+
+Updated after every implemented task. Each task is built by one coding agent, then passes a spec review and a code quality review before it is pushed to `backend-shit`.
+
+| Task | What | Status | Commit |
+|---|---|---|---|
+| 1 | Scaffold: uv, Python 3.12, dependencies, hand landmarker model | Done | d52c4cc |
+| 2 | Numpy classifier, one-time torch export, parity test | Done | a829548 |
+| 3 | Letter acceptance: 0.8 confidence held 0.6 s, J and Z masked | Done | ea78f83 |
+| 4 | Word validation and fallback words | Done | ff3947a |
+| 5 | MediaPipe recognizer matching the repo's `app.py` | Done | 82725ea |
+| 6 | Engine 1/3: rooms, lobby, countdown, round start | Done | 8b5710a |
+| 7 | Engine 2/3: signing, images, scoring, game over | Done | 72304ba |
+| 8 | Engine 3/3: timeout, disconnect, reconnect | Not started | |
+| 9 | Muse client and placeholder image | Not started | |
+| 10 | FastAPI server and WebSocket protocol | Not started | |
+| 11 | `docs/protocol.md` for the frontend teammate | Not started | |
+| 12 | `/dev` camera test page | Not started | |
+| 13 | Dockerfile and fly.toml | Not started | |
+
+Tests: 42 passing at Task 7 (`uv run pytest -q`).
+
+Decisions made during the build, beyond the interview answers:
+- After an image appears, it shows for 5 seconds (`reveal`) before the next 3-second countdown. Both values are in `server/config.py`.
+- J and Z are masked by zeroing their probabilities. The confidence compared with 0.8 is the raw softmax value, not renormalized.
+- The fallback lists hold 29 adjectives and 40 nouns. If a game uses every fallback word (29 or more rounds, possible with many timeouts), words repeat instead of the game stopping.
+- `words.normalize` returns an empty string for anything that is not a string, so a null word from Muse is rejected instead of becoming "NONE".
+- Frames over 640x480 pixels are refused before decoding (`OPENCV_IO_MAX_IMAGE_PIXELS`), so a small JPEG that claims a huge size cannot exhaust memory.
+- A third player joining a full room is refused by the server (Task 10), not by the engine.
+- Known edge case: if frames stop mid-hold and resume on the same letter, the hold can complete at once. This is low risk; revisit it if the camera test shows false accepts.
+- Not tested yet: a frame with a real hand. The first camera test is the first check of that path.
