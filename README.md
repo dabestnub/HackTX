@@ -27,6 +27,7 @@ The included [`render.yaml`](render.yaml) configures a Render web service for th
 
 1. Push this branch to GitHub.
 2. In Render, choose **New > Blueprint**, connect the GitHub repository, and select the branch containing `render.yaml` (currently `jessica-feature`).
+   For this private repository, its owner or an administrator must ensure Render's GitHub App is installed with access to `dabestnub/HackTX`.
 3. Review the Blueprint and create the service. Wait for its first deploy to finish, then copy the service's `https://…onrender.com` URL.
 4. On both computers, open that same HTTPS URL. One player creates a room and shares its code; the other joins with that code.
 5. Each player separately enables local ASL recognition or live video and grants camera permission when prompted. Both must opt into live video.
