@@ -109,8 +109,9 @@
     .letter.filled { border-style: solid; border-color: #91afe9; background: #edf3ff; transform: translateY(-2px); }
     .turn-row { justify-content: flex-start; flex-wrap: wrap; margin-top: auto; padding-top: 16px; border-top: 1px solid #eceef2; color: var(--color-muted); font-size: 0.9rem; }
     .turn-arrow { color: var(--color-accent); font-size: 1.3rem; font-weight: 900; }
-    .image-placeholder { display: grid; min-height: 150px; place-items: center; border: 1px solid #f0dfcd; border-radius: 18px; background: radial-gradient(circle at 50% 40%, #fff5df 0 27%, transparent 28%), linear-gradient(135deg, #fff3e4, #f3eafd); text-align: center; }
-    .cat-art { display: inline-grid; width: 88px; height: 88px; margin-bottom: 3px; place-items: center; border: 1px solid #efcfb8; border-radius: 30px 36px 28px 37px; background: #fffdf7; box-shadow: 0 8px 18px rgba(162, 113, 74, 0.12); font-size: 3.2rem; transform: rotate(-4deg); }
+  .image-placeholder { display: grid; min-height: 150px; place-items: center; border: 1px solid #f0dfcd; border-radius: 18px; background: radial-gradient(circle at 50% 40%, #fff5df 0 27%, transparent 28%), linear-gradient(135deg, #fff3e4, #f3eafd); text-align: center; }
+  .generated-image { display: block; width: min(100%, 320px); aspect-ratio: 1 / 1; border: 1px solid #e3d8c9; border-radius: 16px; object-fit: cover; box-shadow: 0 8px 18px rgba(111, 86, 54, 0.14); }
+  .car-art { display: inline-grid; width: 88px; height: 88px; margin-bottom: 3px; place-items: center; border: 1px solid #efcfb8; border-radius: 30px 36px 28px 37px; background: #fffdf7; box-shadow: 0 8px 18px rgba(162, 113, 74, 0.12); font-size: 3.2rem; transform: rotate(-4deg); }
     .image-caption { margin: 10px 0 0; color: var(--color-muted); font-size: 0.82rem; text-align: center; }
 
     .controls-card { padding: 22px 23px; margin-top: 18px; }
@@ -215,13 +216,9 @@
       <article class="card word-card">
         <div>
           <h2>Spell the word</h2>
-          <p class="muted">The target stays visible during this local practice round.</p>
-          <div class="letter-slots" id="letters" aria-label="CAT, no letters confirmed yet">
-            <span class="letter" data-index="0">?</span>
-            <span class="letter" data-index="1">?</span>
-            <span class="letter" data-index="2">?</span>
-          </div>
-          <strong>Target: CAT</strong>
+          <p class="muted">A random word is picked each round. Sign each letter in order.</p>
+          <div class="letter-slots" id="letters" aria-label="No letters recognized yet"></div>
+          <strong id="target-label">Target: …</strong>
         </div>
         <div class="turn-row"><span id="turn-copy">Player 1 signs the first letter</span><span class="turn-arrow" aria-hidden="true">→</span><span>then alternate</span></div>
       </article>
@@ -229,8 +226,9 @@
       <article class="card image-card">
         <h2>Our shared picture</h2>
         <div class="image-placeholder" id="image">
-          <div>
-            <div class="cat-art" aria-hidden="true">✨ 🐈 ✨</div>
+          <img class="generated-image" id="generated-image" alt="" hidden>
+          <div id="image-fallback">
+            <div class="car-art" aria-hidden="true">✨ � ✨</div>
             <div id="image-copy">A picture will appear after the word.</div>
           </div>
         </div>
@@ -239,29 +237,13 @@
     </section>
 
     <section class="card controls-card" aria-labelledby="controls-title">
-      <h2 id="controls-title">Confirm the next letter</h2>
-      <p class="muted">Real predictions use the existing classifier in this browser. Release your hand after confirming. You can also simulate a prediction for testing.</p>
+      <h2 id="controls-title">Sign the next letter</h2>
+      <p class="muted">Letters are accepted automatically once the browser classifier holds a steady match. Release your hand after each letter. You can also simulate a letter for testing.</p>
       <div class="controls">
         <button type="button" class="secondary" id="simulate">Simulate expected letter</button>
-        <label class="field" for="prediction">Prediction to review
-          <select id="prediction" disabled>
-            <option value="">No prediction</option>
-            <option value="A">A</option><option value="B">B</option><option value="C">C</option>
-            <option value="D">D</option><option value="E">E</option><option value="F">F</option>
-            <option value="G">G</option><option value="H">H</option><option value="I">I</option>
-            <option value="J">J</option><option value="K">K</option><option value="L">L</option>
-            <option value="M">M</option><option value="N">N</option><option value="O">O</option>
-            <option value="P">P</option><option value="Q">Q</option><option value="R">R</option>
-            <option value="S">S</option><option value="T">T</option><option value="U">U</option>
-            <option value="V">V</option><option value="W">W</option><option value="X">X</option>
-            <option value="Y">Y</option><option value="Z">Z</option>
-          </select>
-        </label>
-        <button type="button" class="secondary" id="retry" disabled>Retry</button>
-        <button type="button" id="confirm" disabled>Confirm letter</button>
-        <button type="button" class="secondary" id="reset">Reset demo</button>
+        <button type="button" class="secondary" id="reset">New game</button>
       </div>
-      <p class="notice" id="notice" role="status" aria-live="polite">Ready when you are. Simulate a prediction to begin.</p>
+      <p class="notice" id="notice" role="status" aria-live="polite">Ready when you are. Enable the camera or simulate a letter to begin.</p>
     </section>
 
     <p class="fine-print">Camera privacy: video and hand landmarks are processed locally and are not uploaded or stored. The page downloads its inference libraries from CDNs; those downloads do not include camera data. This is a single-browser prototype, not multiplayer; the timer, scoring rules, image generation, and motion-dependent J/Z recognition are not complete. Recognition can be inaccurate and is not full ASL translation. Camera access requires HTTPS or localhost.</p>
@@ -270,22 +252,120 @@
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/ort.min.js"></script>
   <script>
     (() => {
-      const target = "CAT";
+      // J and Z need motion, which the single-frame classifier can't recognize, so they are excluded.
+      const targetWords = [
+        "CAR", "DOG", "SUN", "BUS", "HAT", "MAP", "PEN", "BED", "CUP", "FOX",
+        "TREE", "BIRD", "FISH", "MOON", "STAR", "BOAT", "CAKE", "RAIN", "FROG", "LAMP"
+      ];
+      let target = "";
+      const sharedCompanionWords = [
+        "galaxy",
+        "jungle",
+        "volcano",
+        "rainbow",
+        "ocean",
+        "castle",
+        "robot",
+        "candy"
+      ];
       const scorePerWord = 100;
+      const goalScore = 500;
+      const nextRoundDelayMs = 6000;
       const stableFrameThreshold = 20;
       const releaseFrameThreshold = 8;
       const mediaPipeVersion = "0.10.14";
       const mediaPipeWasm = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${mediaPipeVersion}/wasm`;
       const handLandmarkerModel = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
       let accepted = "";
+      let sharedCombinedWord = "";
       const acceptedSources = [];
       let currentPlayer = 0;
+      let totalScore = 0;
+      let wordsCompleted = 0;
+      let nextRoundTimer = 0;
+      let sharedImageUrl = "";
+      let sharedImageStatus = "idle";
+      let sharedImageError = "";
+      let sharedImageRequestId = 0;
 
-      const letterSlots = [...document.querySelectorAll(".letter")];
-      const select = document.querySelector("#prediction");
+      async function requestSharedImage() {
+        if (sharedImageStatus !== "idle") {
+          return;
+        }
+        sharedImageStatus = "loading";
+        const requestId = ++sharedImageRequestId;
+        const params = new URLSearchParams({ word1: target, word2: sharedCombinedWord });
+        try {
+          const response = await fetch(`/api/generate?${params}`);
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+          }
+          if (requestId !== sharedImageRequestId) {
+            return;
+          }
+          sharedImageUrl = data.image;
+          sharedImageStatus = "done";
+        } catch (error) {
+          if (requestId !== sharedImageRequestId) {
+            return;
+          }
+          sharedImageError = error.message || "unknown error";
+          sharedImageStatus = "error";
+        }
+        scheduleNextRound();
+        render();
+      }
+
+      function scheduleNextRound() {
+        if (totalScore >= goalScore) {
+          notice.textContent = `Goal reached! ${totalScore} points from ${wordsCompleted} words. Press New game to play again.`;
+          return;
+        }
+        notice.textContent = `${target} complete! ${totalScore}/${goalScore} points. Next word coming up…`;
+        nextRoundTimer = setTimeout(advanceRound, nextRoundDelayMs);
+      }
+
+      function resetRoundState() {
+        clearTimeout(nextRoundTimer);
+        nextRoundTimer = 0;
+        accepted = "";
+        sharedCombinedWord = "";
+        sharedImageUrl = "";
+        sharedImageStatus = "idle";
+        sharedImageError = "";
+        sharedImageRequestId += 1;
+        acceptedSources.length = 0;
+        releaseCount = 0;
+        stableCount = 0;
+        lastStableLabel = "";
+        notice.classList.remove("completed");
+      }
+
+      function advanceRound() {
+        resetRoundState();
+        currentPlayer = 1 - currentPlayer;
+        livePrediction.textContent = "—";
+        predictionDetail.textContent = waitingForRelease ? "Release your hand to re-arm" : "No stable handshape yet";
+        startRound();
+        notice.textContent = `Next word: ${target}. Player ${currentPlayer + 1} starts with ${target[0]}.`;
+        render();
+      }
+
+      function pickSharedCompanionWord() {
+        const options = sharedCompanionWords.filter((word) => word.toUpperCase() !== target);
+        const fallback = "adventure";
+        if (!options.length) {
+          return fallback;
+        }
+        const randomIndex = Math.floor(Math.random() * options.length);
+        return options[randomIndex];
+      }
+
+      const lettersContainer = document.querySelector("#letters");
+      const targetLabel = document.querySelector("#target-label");
+      let letterSlots = [];
       const simulateButton = document.querySelector("#simulate");
-      const retryButton = document.querySelector("#retry");
-      const confirmButton = document.querySelector("#confirm");
       const resetButton = document.querySelector("#reset");
       const notice = document.querySelector("#notice");
       const cameraPreview = document.querySelector("#camera-preview");
@@ -294,15 +374,14 @@
       const cameraStatus = document.querySelector("#camera-status");
       const livePrediction = document.querySelector("#live-prediction");
       const predictionDetail = document.querySelector("#prediction-detail");
+  const generatedImage = document.querySelector("#generated-image");
+  const imageFallback = document.querySelector("#image-fallback");
       const inferenceCanvas = document.createElement("canvas");
       const inferenceContext = inferenceCanvas.getContext("2d");
       let cameraStream = null;
       let handLandmarker = null;
       let classifierSession = null;
       let classLabels = null;
-      let currentPrediction = "";
-      let predictionSource = "";
-      let predictionScore = null;
       let lastStableLabel = "";
       let stableCount = 0;
       let releaseCount = 0;
@@ -311,126 +390,130 @@
       let lastInferenceAt = 0;
       let processingFrame = false;
 
-      function render() {
-        letterSlots.forEach((slot, index) => {
-          const value = accepted[index] || "?";
-          slot.textContent = value;
-          slot.classList.toggle("filled", Boolean(accepted[index]));
-        });
-        document.querySelector("#letters").setAttribute("aria-label", `${target}, ${accepted.length ? `confirmed letters ${[...accepted].join(", ")}` : "no letters confirmed yet"}`);
-        document.querySelector("#player-one").classList.toggle("active", currentPlayer === 0 && accepted.length < target.length);
-        document.querySelector("#player-two").classList.toggle("active", currentPlayer === 1 && accepted.length < target.length);
-        document.querySelector("#tag-one").hidden = currentPlayer !== 0 || accepted.length === target.length;
-        document.querySelector("#tag-two").hidden = currentPlayer !== 1 || accepted.length === target.length;
-        document.querySelector("#turn-copy").textContent = accepted.length === target.length
-          ? "Word complete!"
-          : `Player ${currentPlayer + 1} signs the ${["first", "second", "third"][accepted.length]} letter`;
-
-        const complete = accepted === target;
-        const score = complete ? scorePerWord : 0;
-        document.querySelector("#score").textContent = score;
-        document.querySelector(".progress").setAttribute("aria-valuenow", String(score));
-        document.querySelector("#progress").style.width = `${score / 5}%`;
-        document.querySelector("#image-copy").textContent = complete ? "CAT complete!" : "A picture will appear after the word.";
-        document.querySelector("#image-caption").textContent = complete
-          ? "Illustrative placeholder · mock image, not AI-generated"
-          : "Illustration only · no image service connected";
-        simulateButton.disabled = complete || Boolean(cameraStream);
-        select.disabled = !select.value || complete || Boolean(cameraStream);
-        retryButton.disabled = !select.value || complete;
-        confirmButton.disabled = !select.value || complete;
+      function startRound() {
+        const options = targetWords.filter((word) => word !== target);
+        target = options[Math.floor(Math.random() * options.length)];
+        lettersContainer.replaceChildren(...[...target].map((_, index) => {
+          const slot = document.createElement("span");
+          slot.className = "letter";
+          slot.dataset.index = String(index);
+          slot.textContent = "?";
+          return slot;
+        }));
+        letterSlots = [...lettersContainer.children];
+        targetLabel.textContent = `Target: ${target}`;
       }
 
-      simulateButton.addEventListener("click", () => {
-        select.value = target[accepted.length];
-        currentPrediction = select.value;
-        predictionSource = "simulated";
-        livePrediction.textContent = currentPrediction;
-        predictionDetail.textContent = "Simulated · not camera recognition";
-        notice.textContent = `Simulated prediction: ${select.value}. Review it, then confirm.`;
-        render();
-      });
+      function describeTurn() {
+        if (accepted.length === target.length) {
+          return "Word complete!";
+        }
+        const ordinal = ["first", "second", "third", "fourth"][accepted.length];
+        return `Player ${currentPlayer + 1} signs the ${ordinal} letter`;
+      }
 
-      select.addEventListener("change", () => {
-        currentPrediction = select.value;
-        predictionSource = select.value ? "simulated" : "";
-        notice.textContent = select.value
-          ? `Simulated prediction: ${select.value}. Review it, then confirm.`
-          : "Prediction cleared. Simulate again when ready.";
-        render();
-      });
-
-      retryButton.addEventListener("click", () => {
-        waitingForRelease = predictionSource === "camera";
-        currentPrediction = "";
-        predictionSource = "";
-        predictionScore = null;
-        releaseCount = 0;
-        stableCount = 0;
-        lastStableLabel = "";
-        select.value = "";
-        livePrediction.textContent = "—";
-        predictionDetail.textContent = waitingForRelease
-          ? "Release your hand before trying again"
-          : "No stable handshape yet";
-        notice.textContent = waitingForRelease
-          ? "Prediction cleared. Release your hand from the camera view before trying again."
-          : "Prediction cleared. Simulate again when ready.";
-        render();
-        if (cameraStream) {
-          cameraStop.focus();
+      function renderImage(complete) {
+        const comboLabel = `${target.toLowerCase()} + ${sharedCombinedWord.toLowerCase()}`;
+        const showImage = complete && Boolean(sharedImageUrl);
+        generatedImage.hidden = !showImage;
+        imageFallback.hidden = showImage;
+        if (showImage) {
+          generatedImage.src = sharedImageUrl;
+          generatedImage.alt = `AI-generated image combining ${comboLabel}`;
         } else {
-          simulateButton.focus();
+          generatedImage.removeAttribute("src");
+          generatedImage.alt = "";
         }
-      });
 
-      confirmButton.addEventListener("click", () => {
-        const expected = target[accepted.length];
-        if (select.value !== expected) {
-          notice.textContent = `Not the expected letter for this demo step. Expected ${expected}; retry the prediction.`;
-          return;
+        let imageCopy = "A picture will appear after the word.";
+        let captionText = "Complete the word to generate a shared image.";
+        if (complete) {
+          const failed = sharedImageStatus === "error";
+          imageCopy = failed ? "Image generation failed." : "Generating your image…";
+          captionText = failed ? `${comboLabel} · ${sharedImageError}` : comboLabel;
         }
-        const confirmedLetter = select.value;
-        const confirmedSource = predictionSource;
-        accepted += select.value;
-        acceptedSources.push(confirmedSource);
-        select.value = "";
-        currentPrediction = "";
-        predictionSource = "";
-        predictionScore = null;
-        if (confirmedSource === "camera") {
+        document.querySelector("#image-copy").textContent = imageCopy;
+        document.querySelector("#image-caption").textContent = captionText;
+      }
+
+      function render() {
+        letterSlots.forEach((slot, index) => {
+          slot.textContent = accepted[index] || "?";
+          slot.classList.toggle("filled", Boolean(accepted[index]));
+        });
+        const recognized = accepted.length ? [...accepted].join(", ") : "none yet";
+        lettersContainer.setAttribute("aria-label", `${target}, recognized letters: ${recognized}`);
+
+        const inProgress = accepted.length < target.length;
+        document.querySelector("#player-one").classList.toggle("active", currentPlayer === 0 && inProgress);
+        document.querySelector("#player-two").classList.toggle("active", currentPlayer === 1 && inProgress);
+        document.querySelector("#tag-one").hidden = currentPlayer !== 0 || !inProgress;
+        document.querySelector("#tag-two").hidden = currentPlayer !== 1 || !inProgress;
+        document.querySelector("#turn-copy").textContent = describeTurn();
+
+        const complete = accepted === target;
+        if (complete && !sharedCombinedWord) {
+          sharedCombinedWord = pickSharedCompanionWord();
+        }
+        const score = totalScore;
+        document.querySelector("#score").textContent = score;
+        document.querySelector(".progress").setAttribute("aria-valuenow", String(score));
+        document.querySelector("#progress").style.width = `${(score / goalScore) * 100}%`;
+
+        if (complete) {
+          requestSharedImage();
+        }
+        renderImage(complete);
+        simulateButton.disabled = complete || Boolean(cameraStream);
+      }
+
+      function acceptLetter(letter, source) {
+        if (accepted === target || letter !== target[accepted.length]) {
+          return false;
+        }
+        accepted += letter;
+        acceptedSources.push(source);
+        lastStableLabel = "";
+        stableCount = 0;
+        if (source === "camera") {
           waitingForRelease = true;
-          livePrediction.textContent = "—";
-          predictionDetail.textContent = "Release your hand to re-arm";
+          releaseCount = 0;
+          livePrediction.textContent = letter;
+          predictionDetail.textContent = "Accepted · release your hand to re-arm";
         }
         if (accepted === target) {
-          const recognizedCount = acceptedSources.filter((source) => source === "camera").length;
+          totalScore = Math.min(goalScore, totalScore + scorePerWord);
+          wordsCompleted += 1;
+          const recognizedCount = acceptedSources.filter((item) => item === "camera").length;
           const simulatedCount = acceptedSources.length - recognizedCount;
-          notice.textContent = `CAT complete! ${recognizedCount} letter${recognizedCount === 1 ? "" : "s"} browser-recognized, ${simulatedCount} simulated. Demo score: ${scorePerWord} points. The picture is illustrative, not AI-generated.`;
+          notice.textContent = `${target} complete! ${recognizedCount} browser-recognized, ${simulatedCount} simulated. Score: ${totalScore}/${goalScore}. Generating your picture…`;
           notice.classList.add("completed");
         } else {
           currentPlayer = 1 - currentPlayer;
-          notice.textContent = `${confirmedLetter} ${confirmedSource === "camera" ? "recognized in this browser and" : "simulated and"} confirmed. Player ${currentPlayer + 1}, your local turn.`;
+          const how = source === "camera" ? "recognized" : "simulated";
+          notice.textContent = `${letter} ${how}. Player ${currentPlayer + 1}, your turn.`;
         }
         render();
+        return true;
+      }
+
+      simulateButton.addEventListener("click", () => {
+        const letter = target[accepted.length];
+        livePrediction.textContent = letter;
+        predictionDetail.textContent = "Simulated · not camera recognition";
+        acceptLetter(letter, "simulated");
       });
 
       resetButton.addEventListener("click", () => {
-        accepted = "";
-        acceptedSources.length = 0;
+        resetRoundState();
+        totalScore = 0;
+        wordsCompleted = 0;
         currentPlayer = 0;
-        select.value = "";
-        currentPrediction = "";
-        predictionSource = "";
-        predictionScore = null;
         waitingForRelease = Boolean(cameraStream);
-        releaseCount = 0;
-        stableCount = 0;
-        lastStableLabel = "";
         livePrediction.textContent = "—";
         predictionDetail.textContent = waitingForRelease ? "Release your hand to re-arm" : "No stable handshape yet";
-        notice.textContent = "Demo reset. Player 1 starts with C.";
-        notice.classList.remove("completed");
+        startRound();
+        notice.textContent = `New game! Your word is ${target}. Player 1 starts with ${target[0]}.`;
         render();
         if (cameraStream) {
           cameraStop.focus();
@@ -509,6 +592,44 @@
         }
       }
 
+      async function classifyLandmarks(hand) {
+        const input = new window.ort.Tensor("float32", normalizeLandmarks(hand), [1, 63]);
+        const output = await classifierSession.run({ landmarks: input });
+        const logits = output.logits.data;
+        let maxLogit = -Infinity;
+        let predictedIndex = 0;
+        for (let index = 0; index < logits.length; index += 1) {
+          if (logits[index] > maxLogit) {
+            maxLogit = logits[index];
+            predictedIndex = index;
+          }
+        }
+        let exponentialTotal = 0;
+        for (const logit of logits) {
+          exponentialTotal += Math.exp(logit - maxLogit);
+        }
+        return { label: classLabels[predictedIndex], score: 1 / exponentialTotal };
+      }
+
+      async function observeHand(hand) {
+        const { label, score } = await classifyLandmarks(hand);
+        stableCount = label === lastStableLabel ? stableCount + 1 : 0;
+        lastStableLabel = label;
+        livePrediction.textContent = label;
+        const stableFrames = Math.min(stableCount + 1, stableFrameThreshold + 1);
+        const scoreText = `Model score ${(score * 100).toFixed(1)}%`;
+        predictionDetail.textContent = `${scoreText} · stable ${stableFrames}/${stableFrameThreshold + 1}`;
+        if (stableCount < stableFrameThreshold) {
+          return;
+        }
+        const expected = target[accepted.length];
+        if (label === expected) {
+          acceptLetter(label, "camera");
+        } else {
+          predictionDetail.textContent = `${scoreText} · seeing ${label}, need ${expected}`;
+        }
+      }
+
       async function recognizeFrame(timestamp) {
         if (!cameraStream) {
           return;
@@ -534,53 +655,14 @@
             const result = handLandmarker.detectForVideo(inferenceCanvas, timestamp);
             if (!result.landmarks.length) {
               observeNoHand();
-              if (currentPrediction && predictionSource === "camera") {
-                livePrediction.textContent = currentPrediction;
-                predictionDetail.textContent = `Model score ${(predictionScore * 100).toFixed(1)}% · ready to confirm`;
-              } else {
-                predictionDetail.textContent = waitingForRelease
-                  ? `Release hand · ${releaseCount}/${releaseFrameThreshold}`
-                  : "No hand detected";
-              }
+              predictionDetail.textContent = waitingForRelease
+                ? `Release hand · ${releaseCount}/${releaseFrameThreshold}`
+                : "No hand detected";
             } else if (waitingForRelease) {
               releaseCount = 0;
               predictionDetail.textContent = "Release your hand to re-arm";
-            } else if (currentPrediction && predictionSource === "camera") {
-              livePrediction.textContent = currentPrediction;
-              predictionDetail.textContent = `Model score ${(predictionScore * 100).toFixed(1)}% · ready to confirm`;
-            } else {
-              const input = new window.ort.Tensor("float32", normalizeLandmarks(result.landmarks[0]), [1, 63]);
-              const output = await classifierSession.run({ landmarks: input });
-              const logits = output.logits.data;
-              let maxLogit = -Infinity;
-              let predictedIndex = 0;
-              for (let index = 0; index < logits.length; index += 1) {
-                if (logits[index] > maxLogit) {
-                  maxLogit = logits[index];
-                  predictedIndex = index;
-                }
-              }
-              let exponentialTotal = 0;
-              for (const logit of logits) {
-                exponentialTotal += Math.exp(logit - maxLogit);
-              }
-              const rawScore = 1 / exponentialTotal;
-              const label = classLabels[predictedIndex];
-              stableCount = label === lastStableLabel ? stableCount + 1 : 0;
-              lastStableLabel = label;
-              predictionScore = rawScore;
-              livePrediction.textContent = label;
-              const stableFrames = Math.min(stableCount + 1, stableFrameThreshold + 1);
-              predictionDetail.textContent = `Model score ${(rawScore * 100).toFixed(1)}% · stable ${stableFrames}/${stableFrameThreshold + 1}`;
-              if (stableCount >= stableFrameThreshold && !currentPrediction) {
-                currentPrediction = label;
-                predictionSource = "camera";
-                select.value = label;
-                predictionDetail.textContent = `Model score ${(rawScore * 100).toFixed(1)}% · ready to confirm`;
-                cameraStatus.textContent = "Stable prediction ready. Review it and confirm; video and landmarks stay in this browser.";
-                notice.textContent = `Browser model predicts ${label}. Review the letter before confirming.`;
-                render();
-              }
+            } else if (accepted !== target) {
+              await observeHand(result.landmarks[0]);
             }
           } catch (error) {
             const message = `Local recognition stopped: ${error.message || "unknown error"}`;
@@ -609,10 +691,6 @@
         cameraPreview.replaceChildren(offMessage);
         cameraStart.hidden = false;
         cameraStop.hidden = true;
-        currentPrediction = "";
-        predictionSource = "";
-        predictionScore = null;
-        select.value = "";
         livePrediction.textContent = "—";
         predictionDetail.textContent = "No stable handshape yet";
         render();
@@ -643,7 +721,7 @@
           await video.play();
           cameraStatus.textContent = "Loading the local hand detector and classifier…";
           await loadRecognition();
-          cameraStatus.textContent = "Local recognition is on. Hold a handshape steady, then review and confirm the prediction.";
+          cameraStatus.textContent = "Local recognition is on. Hold the expected handshape steady and it will be accepted automatically.";
           animationFrame = requestAnimationFrame(recognizeFrame);
         } catch (error) {
           const messages = {
@@ -666,6 +744,8 @@
 
       window.addEventListener("pagehide", stopCamera);
 
+      startRound();
+      notice.textContent = `Your word is ${target}. Enable the camera or simulate a letter to begin.`;
       render();
     })();
   </script>
