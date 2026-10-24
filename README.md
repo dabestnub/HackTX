@@ -19,7 +19,22 @@ npm install
 npm start
 ```
 
-Then open `http://127.0.0.1:8000` in two browser windows/devices. A hosted deployment needs a Node-capable host that supports WebSocket upgrades, HTTPS/WSS, and a proxy configured to forward WebSocket connections. Camera access requires HTTPS on hosted sites (localhost is allowed for local testing).
+Then open `http://localhost:8000` in two browser windows/devices.
+
+## Host for players on different computers
+
+The included [`render.yaml`](render.yaml) configures a Render web service for the Node app. It serves the website and room WebSocket from the same service, binds to Render's `PORT` on `0.0.0.0`, and uses Render's HTTPS endpoint so the browser connects over WSS and can request camera permission.
+
+1. Push this branch to GitHub.
+2. In Render, choose **New > Blueprint**, connect the GitHub repository, and select the branch containing `render.yaml` (currently `jessica-feature`).
+   For this private repository, its owner or an administrator must ensure Render's GitHub App is installed with access to `dabestnub/HackTX`.
+3. Review the Blueprint and create the service. Wait for its first deploy to finish, then copy the service's `https://…onrender.com` URL.
+4. On both computers, open that same HTTPS URL. One player creates a room and shares its code; the other joins with that code.
+5. Each player separately enables local ASL recognition or live video and grants camera permission when prompted. Both must opt into live video.
+
+Render supports inbound WebSockets and provisions HTTPS for its public service URL. The client selects WSS automatically when the page uses HTTPS. No separate static-site service or local-host address is needed.
+
+This prototype keeps rooms in memory: a server restart or redeploy clears them. Render's free service may sleep while idle, so the first visit after inactivity can take longer and active rooms should not be treated as persistent. Local ASL inference runs in each player's browser; camera frames are not sent to the game server. Live video uses peer-to-peer WebRTC and the app currently has STUN but no TURN relay, so restrictive networks may block video even when room gameplay works. Do not put permanent TURN credentials in browser code; reliable TURN support should use a provider that issues short-lived credentials.
 
 The visual refresh applies the [UI UX Pro Max guidance](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill): semantic design tokens, stronger type and content hierarchy, restrained surfaces and shadows, responsive reflow, visible keyboard focus, and reduced-motion support. The skill is design guidance only; the site does not depend on its runtime or tooling.
 

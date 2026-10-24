@@ -418,5 +418,5 @@ setInterval(() => {
 }, 1000).unref();
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`SignSync listening on http://localhost:${PORT}`);
+  console.log(`SignSync listening on 0.0.0.0:${PORT}`);
 });
