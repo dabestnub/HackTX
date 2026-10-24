@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASL Co-op Dev</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 16px; max-width: 960px; }
+  button, input { font-size: 16px; }
+  #stage { position: relative; width: 640px; max-width: 100%; aspect-ratio: 4 / 3; background: #111; }
+  #stage video, #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #stage video { transform: scaleX(-1); object-fit: contain; } /* mirror the preview only (Q16) */
+  button:focus-visible, input:focus-visible { outline: 3px solid #075bb5; outline-offset: 2px; }
+  .word { font-size: 32px; letter-spacing: 6px; font-family: monospace; }
+  .done { color: #1a7f1a; }
+  .next { text-decoration: underline; }
+  #hold { width: 240px; height: 10px; background: #ddd; }
+  #hold div { height: 100%; width: 0; background: #1a7f1a; }
+  #image img, #gallery img { width: 256px; margin: 4px; }
+  pre { background: #f4f4f4; max-height: 200px; overflow: auto; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>ASL Co-op dev page</h1>
+<p>
+  <label>Name <input id="name" value="Player" maxlength="20"></label>
+  <button id="create">Create room</button>
+  <label>Room <input id="code" size="5" maxlength="4"></label>
+  <button id="join">Join room</button>
+  <button id="ready" disabled>Ready</button>
+  <button id="again" hidden>Play again</button>
+</p>
+<p>Allow camera access on HTTPS or localhost. Frames are sent only during signing.</p>
+<p id="status" role="status" aria-live="polite">Not connected</p>
+<div id="stage">
+  <video id="video" autoplay playsinline muted aria-label="Mirrored camera preview"></video>
+  <canvas id="overlay" width="640" height="480" aria-hidden="true"></canvas>
+</div>
+<p>Guess: <b id="guess">-</b> <span id="conf"></span></p>
+<div id="hold" role="progressbar" aria-label="Letter hold progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div></div></div>
+<p>You: <span id="mine" class="word"></span></p>
+<p>Partner: <span id="theirs" class="word"></span></p>
+<p>Time left: <b id="timer">-</b> &middot; Score: <b id="score">0</b> / <span id="target">500</span></p>
+<div id="image"></div>
+<div id="gallery"></div>
+<pre id="log"></pre>
+<script>
+const $ = (id) => document.getElementById(id);
+const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
+const BONES = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],
+               [0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
+const video = $("video"), overlay = $("overlay").getContext("2d"), grab = document.createElement("canvas");
+let ws = null, session = null, me = 0, phase = "", paused = false, ready = false;
+let words = {}, progress = {}, endsAt = 0, encoding = false;
+let starting = false, retryTimer = null, expiryTimer = null, retryUntil = 0, pausedUntil = 0;
+let captureEpoch = 0, lastSent = -Infinity;
+
+function log(m) {
+  // Keep the rejoin credential out of the visible debug log.
+  const safe = m.type === "room_joined" ? { ...m, token: "[hidden]" } : m;
+  $("log").textContent = JSON.stringify(safe) + "\n" + $("log").textContent.slice(0, 5000);
+}
+
+function send(m) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m)); }
+
+function controls() {
+  $("create").disabled = $("join").disabled = starting || !!ws || !!session;
+  const connected = !!session && ws?.readyState === WebSocket.OPEN;
+  $("ready").disabled = !connected || phase !== "lobby" || paused;
+  $("again").disabled = !connected || paused;
+}
+
+function clearRetry() {
+  clearTimeout(retryTimer); clearTimeout(expiryTimer);
+  retryTimer = expiryTimer = null; retryUntil = 0;
+}
+
+function stop(message) {
+  clearRetry();
+  session = null; phase = ""; paused = true; pausedUntil = 0; endsAt = 0;
+  captureEpoch++;
+  const old = ws; ws = null;
+  if (old) old.close();
+  clearRecognition(); controls();
+  $("again").hidden = true;
+  $("status").textContent = message;
+}
+
+function retry() {
+  if (!session) return;
+  const left = retryUntil - performance.now();
+  if (left <= 0) { stop("Reconnect window expired; create or join a room again."); return; }
+  clearTimeout(retryTimer);
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    if (session) connect({ type: "rejoin", room: session.room, token: session.token });
+  }, Math.min(2000, left));
+}
+
+function connect(first) {
+  if (ws) return;
+  let socket;
+  try { socket = new WebSocket(WS_URL); }
+  catch (error) {
+    if (session) retry();
+    else stop(`Connection failed: ${error.message}`);
+    return;
+  }
+  ws = socket; controls();
+  socket.onopen = () => { if (ws === socket) socket.send(JSON.stringify(first)); };
+  socket.onmessage = (e) => { if (ws === socket) handle(JSON.parse(e.data)); };
+  socket.onclose = () => {
+    if (ws !== socket) return;
+    ws = null; captureEpoch++;
+    if (!session) { stop("Connection failed. Check the server and try again."); return; }
+    if (phase === "signing" && !paused) drawTimer();
+    paused = true; clearRecognition(); controls();
+    $("status").textContent = "Disconnected; reconnecting within the room's 30-second grace window...";
+    // Never extend an existing pause's grace or let a hanging retry outlive it.
+    if (!retryUntil) {
+      retryUntil = Math.min(performance.now() + 30000, pausedUntil || Infinity);
+      expiryTimer = setTimeout(() => stop("Reconnect window expired; create or join a room again."),
+        Math.max(0, retryUntil - performance.now()));
+    }
+    retry();
+  };
+}
+
+async function startCamera() {
+  if (!navigator.mediaDevices?.getUserMedia) throw new Error("Camera unavailable. Open this page on HTTPS or localhost.");
+  if (!video.srcObject) video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+  await video.play();
+}
+
+video.onloadedmetadata = () => {
+  if (video.videoWidth && video.videoHeight) $("stage").style.aspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
+};
+
+async function begin(first) {
+  if (starting || ws || session) return;
+  starting = true; controls();
+  $("status").textContent = "Requesting camera access...";
+  try {
+    await startCamera();
+    words = {}; progress = {}; phase = ""; ready = false; paused = false; endsAt = 0;
+    drawWords(); clearRecognition();
+    $("image").replaceChildren(); $("gallery").replaceChildren();
+    $("score").textContent = "0"; $("timer").textContent = "-";
+    $("status").textContent = "Connecting...";
+    connect(first);
+  } catch (error) {
+    const message = error.name === "NotAllowedError" ? "Camera permission denied. Allow camera access in your browser and try again."
+      : error.name === "NotFoundError" ? "No camera found. Connect a camera and try again."
+      : `Camera unavailable: ${error.message}. Check that it is connected and not busy.`;
+    stop(message);
+  } finally { starting = false; controls(); }
+}
+
+function img(src, alt) { const i = new Image(); i.src = src; i.alt = alt; i.title = alt; return i; }
+
+function letters(word, done) {
+  return [...word].map((c, i) => `<span class="${i < done ? "done" : i === done ? "next" : ""}">${c}</span>`).join("");
+}
+
+function drawWords() {
+  const other = me === 1 ? 2 : 1;
+  $("mine").innerHTML = letters(words[me] || "", progress[me] || 0);
+  $("theirs").innerHTML = letters(words[other] || "", progress[other] || 0);
+}
+
+function drawRecognition(m) {
+  $("guess").textContent = m.guess || "-";
+  $("conf").textContent = m.guess ? `${Math.round(m.confidence * 100)}% (need ${m.expected})` : "no hand";
+  $("hold").firstElementChild.style.width = `${m.hold * 100}%`;
+  $("hold").setAttribute("aria-valuenow", Math.round(m.hold * 100));
+  overlay.clearRect(0, 0, 640, 480);
+  if (!m.landmarks) return;
+  const pts = m.landmarks.map(([x, y]) => [x * 640, y * 480]); // already mirrored, like the preview
+  overlay.strokeStyle = "#0c0"; overlay.fillStyle = "#0f0"; overlay.lineWidth = 2;
+  for (const [a, b] of BONES) { overlay.beginPath(); overlay.moveTo(...pts[a]); overlay.lineTo(...pts[b]); overlay.stroke(); }
+  for (const [x, y] of pts) { overlay.beginPath(); overlay.arc(x, y, 4, 0, 2 * Math.PI); overlay.fill(); }
+}
+
+function clearRecognition() {
+  $("guess").textContent = "-"; $("conf").textContent = "";
+  $("hold").firstElementChild.style.width = "0%";
+  $("hold").setAttribute("aria-valuenow", "0");
+  overlay.clearRect(0, 0, 640, 480);
+}
+
+function drawTimer() {
+  if (phase === "signing" && endsAt && !paused) $("timer").textContent = `${Math.max(0, (endsAt - performance.now()) / 1000).toFixed(1)}s`;
+}
+
+function handle(m) {
+  if (m.type !== "recognition") log(m);
+  switch (m.type) {
+    case "room_joined":
+      me = m.slot; session = { room: m.room, token: m.token };
+      $("code").value = m.room;
+      break;
+    case "room_state": {
+      if (m.phase === "lobby" && phase !== "lobby") {
+        words = {}; progress = {}; drawWords();
+        $("image").replaceChildren(); $("gallery").replaceChildren();
+      }
+      if (m.paused && !pausedUntil) pausedUntil = performance.now() + 30000;
+      if (!m.paused) { pausedUntil = 0; clearRetry(); }
+      captureEpoch++;
+      phase = m.phase; paused = m.paused;
+      ready = !!m.players.find((p) => p.slot === me)?.ready;
+      endsAt = m.time_left == null ? 0 : performance.now() + m.time_left * 1000;
+      $("ready").textContent = ready ? "Unready" : "Ready";
+      $("score").textContent = m.score; $("target").textContent = m.target;
+      $("again").hidden = phase !== "game_over";
+      if (phase !== "countdown") $("timer").textContent = m.time_left == null ? "-" : `${m.time_left.toFixed(1)}s`;
+      const who = m.players.map((p) => `${p.slot === me ? "you" : p.name}${p.ready ? " (ready)" : ""}${p.connected ? "" : " (offline)"}`);
+      $("status").textContent = `Room ${m.room} | ${phase}${paused ? " | paused, waiting for a reconnect" : ""} | ${who.join(", ")}`;
+      if (phase !== "signing" || paused) clearRecognition();
+      controls();
+      break;
+    }
+    case "countdown": $("image").replaceChildren(); $("timer").textContent = `starting in ${m.seconds}s`; break;
+    case "round_start":
+      captureEpoch++; clearRecognition();
+      words = {}; progress = {};
+      for (const w of m.words) { words[w.slot] = w.word; progress[w.slot] = 0; }
+      drawWords();
+      break;
+    case "progress": progress[m.slot] = m.done; drawWords(); break;
+    case "recognition": if (phase === "signing" && !paused) drawRecognition(m); break;
+    case "round_failed": $("timer").textContent = "time up, no points"; break;
+    case "image_pending": $("image").textContent = `Drawing ${m.phrase}...`; break;
+    case "image_ready": $("image").replaceChildren(img(m.url, m.phrase)); break;
+    case "round_complete": $("score").textContent = m.score; break;
+    case "game_over": $("gallery").replaceChildren(...m.gallery.map((g) => img(g.url, g.phrase))); break;
+    case "room_closed": stop(`Room closed: ${m.reason}. Create or join a room again.`); break;
+    case "error":
+      if (["room_not_found", "room_full", "bad_token", "join_first", "recognizer_unavailable"].includes(m.code)) stop(m.message);
+      else $("status").textContent = `${m.code}: ${m.message}`;
+      break;
+  }
+}
+
+// Raw, unmirrored frames, at most 640x480 and 10 per second, only while signing (Q16)
+function canCapture() {
+  return phase === "signing" && !paused && ws?.readyState === WebSocket.OPEN && !ws.bufferedAmount
+    && endsAt > performance.now() && performance.now() - lastSent >= 100;
+}
+
+setInterval(() => {
+  if (!canCapture() || encoding || !video.videoWidth || !video.videoHeight) return;
+  const socket = ws, epoch = captureEpoch;
+  const s = Math.min(1, 640 / video.videoWidth, 480 / video.videoHeight);
+  grab.width = Math.round(video.videoWidth * s); grab.height = Math.round(video.videoHeight * s);
+  encoding = true;
+  try {
+    grab.getContext("2d").drawImage(video, 0, 0, grab.width, grab.height);
+    grab.toBlob((b) => {
+      encoding = false;
+      if (b && ws === socket && epoch === captureEpoch && canCapture()) {
+        socket.send(b); lastSent = performance.now();
+      }
+    }, "image/jpeg", 0.7);
+  } catch (error) { encoding = false; stop(`Camera capture failed: ${error.message}`); }
+}, 100);
+
+setInterval(drawTimer, 100);
+
+$("create").onclick = () => begin({ type: "create_room", name: $("name").value });
+$("join").onclick = () => begin({ type: "join_room", room: $("code").value.trim().toUpperCase(), name: $("name").value });
+$("ready").onclick = () => send({ type: "ready", ready: !ready });
+$("again").onclick = () => { $("gallery").replaceChildren(); send({ type: "play_again" }); };
+</script>
+</body>
+</html>
