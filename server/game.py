@@ -107,6 +107,56 @@ class Room:
             self.next_pair = (adjective, noun)
         return []
 
+    # ---- signing and images ----
+
+    def on_recognition(self, slot: int, probs, landmarks, now: float) -> list:
+        p = self.players.get(slot)
+        if self.phase is not Phase.SIGNING or self.paused_at is not None or p is None or p.done:
+            return []
+        expected = p.word[p.index]
+        guess, conf, hold, accepted = p.hold.update(expected, probs, now)
+        if accepted:
+            p.index += 1
+        outs = [Send(slot, {"type": "recognition", "guess": guess, "confidence": round(conf, 3),
+                            "hold": round(hold, 2), "accepted": accepted, "expected": expected,
+                            "landmarks": landmarks})]
+        if not accepted:
+            return outs
+        outs.append(Send(None, {"type": "progress", "slot": slot, "done": p.index, "length": len(p.word)}))
+        if all(q.done for q in self.players.values()):
+            self.phase = Phase.GENERATING
+            self.deadline = None
+            outs += [Send(None, {"type": "image_pending", "round": self.round_no, "phrase": self.phrase}),
+                     self._state(now), GenerateImage(self.round_no, self.phrase)]
+        return outs
+
+    def on_image(self, round_no: int, url: str, now: float) -> list:
+        if self.phase is not Phase.GENERATING or round_no != self.round_no:
+            return []
+        self.score += self.s.points_per_round
+        self.gallery.append({"phrase": self.phrase, "url": url})
+        outs = [Send(None, {"type": "image_ready", "round": round_no, "phrase": self.phrase, "url": url}),
+                Send(None, {"type": "round_complete", "round": round_no, "phrase": self.phrase,
+                            "points": self.s.points_per_round, "score": self.score})]
+        if self.score >= self.s.target_score:
+            self.phase = Phase.GAME_OVER
+            self.deadline = None
+            outs.append(Send(None, self._game_over()))
+        else:
+            self.phase = Phase.REVEAL
+            self.deadline = now + self.s.reveal
+        return [*outs, self._state(now)]
+
+    def play_again(self, slot: int, now: float) -> list:
+        if self.phase is not Phase.GAME_OVER:
+            return []
+        self.phase = Phase.LOBBY
+        self.score, self.round_no, self.phrase = 0, 0, ""
+        self.used, self.gallery, self.next_pair = set(), [], None
+        for p in self.players.values():
+            p.ready, p.word, p.index = False, "", 0
+        return [self._state(now)]
+
     # ---- clock ----
 
     def tick(self, now: float) -> list:
@@ -114,6 +164,8 @@ class Room:
             return []
         if self.phase is Phase.COUNTDOWN:
             return self._start_signing(now)
+        if self.phase is Phase.REVEAL:
+            return self._start_countdown(now)
         return []
 
     # ---- transitions ----
@@ -153,6 +205,9 @@ class Room:
         return {"type": "round_start", "round": self.round_no, "phrase": self.phrase,
                 "words": [{"slot": p.slot, "word": p.word} for p in self._ordered()],
                 "your_word": self.players[slot].word, "time_limit": self.s.time_limit}
+
+    def _game_over(self) -> dict:
+        return {"type": "game_over", "score": self.score, "gallery": list(self.gallery)}
 
     def _time_left(self, now: float) -> float | None:
         if self.phase is not Phase.SIGNING or self.deadline is None:
