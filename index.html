@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#fff7dc">
+  <title>SignSync — local ASL practice</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --color-background: #fff8e7;
+      --color-surface: #fffefa;
+      --color-surface-raised: #ffffff;
+      --color-foreground: #282a32;
+      --color-muted: #646b78;
+      --color-primary: #315fc4;
+      --color-primary-hover: #274fa9;
+      --color-primary-soft: #e8efff;
+      --color-accent: #da6553;
+      --color-accent-soft: #fff0e8;
+      --color-panel: #edf2f7;
+      --color-border: #d7dce4;
+      --color-ring: #7754c8;
+      --shadow-card: 0 16px 38px rgba(58, 61, 72, 0.08), 0 2px 8px rgba(58, 61, 72, 0.04);
+      --radius-card: 24px;
+      --radius-control: 14px;
+      --motion-fast: 180ms ease;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--color-foreground);
+      background-color: var(--color-background);
+      background-image: radial-gradient(rgba(177, 146, 75, 0.17) 1px, transparent 1px);
+      background-position: 8px 8px;
+      background-size: 24px 24px;
+      font-family: "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
+      line-height: 1.5;
+    }
+
+    button, select { font: inherit; }
+
+    button {
+      min-height: 48px;
+      padding: 0.7rem 1.15rem;
+      border: 0;
+      border-radius: var(--radius-control);
+      color: white;
+      background: var(--color-primary);
+      font-weight: 750;
+      cursor: pointer;
+      box-shadow: 0 3px 0 #244891;
+      transition: background var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
+    }
+
+    button:hover:not(:disabled) { background: var(--color-primary-hover); transform: translateY(-1px); }
+    button:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 1px 0 #244891; }
+    button:focus-visible, select:focus-visible { outline: 3px solid var(--color-ring); outline-offset: 3px; }
+    button:disabled { cursor: not-allowed; opacity: 0.48; box-shadow: none; }
+
+    .page { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 28px 0 48px; }
+    header, .score-row, .player-top, .turn-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    header { margin-bottom: 24px; }
+    h1 { margin: 0; font-size: clamp(2rem, 4vw, 2.75rem); letter-spacing: -0.065em; line-height: 1.04; }
+    h2, h3, p { margin-top: 0; }
+    h2 { margin-bottom: 8px; font-size: 1.23rem; letter-spacing: -0.025em; }
+    h3 { margin-bottom: 8px; }
+    .brand { display: flex; align-items: center; gap: 14px; }
+    .brand-mark { display: grid; width: 54px; height: 54px; place-items: center; border: 1px solid #efbca8; border-radius: 19px; background: linear-gradient(145deg, #ffe0cb, #ffd2bd); box-shadow: 0 5px 12px rgba(218, 101, 83, 0.14); font-size: 1.8rem; }
+    .subhead, .muted { color: var(--color-muted); }
+    .subhead { margin: 5px 0 0; font-size: 0.96rem; }
+    .badge { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 9px 13px; border: 1px solid #e3d7b8; border-radius: 999px; background: rgba(255, 254, 250, 0.82); color: #505663; font-size: 0.83rem; font-weight: 750; }
+    .dot { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: #5a9a70; box-shadow: 0 0 0 3px #5a9a7022; }
+
+    .card { border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); box-shadow: var(--shadow-card); }
+    .score-card { padding: 22px 25px 20px; margin-bottom: 18px; }
+    .score-row > div:first-child { min-width: 0; }
+    .score-number { margin-top: 1px; font-size: 1.78rem; font-weight: 850; letter-spacing: -0.055em; line-height: 1.12; }
+    .score-number span { color: var(--color-muted); font-size: 0.94rem; font-weight: 650; letter-spacing: 0; }
+    .timer { display: inline-flex; align-items: center; gap: 8px; padding: 9px 13px; border: 1px solid #f0d5cc; border-radius: 13px; background: var(--color-accent-soft); color: #9a4538; font-size: 1.16rem; font-variant-numeric: tabular-nums; font-weight: 850; letter-spacing: 0.02em; }
+    .timer::before { content: "◷"; font-size: 1.02rem; }
+    .progress { height: 11px; margin-top: 17px; overflow: hidden; border-radius: 99px; background: #e9edf3; }
+    .progress-fill { width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #477fe0, #6a92e9); transition: width 350ms ease; }
+
+    .players { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .player { padding: 19px; border: 1px solid #d9e0e8; border-radius: 22px; background: var(--color-panel); transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast); }
+    .player.active { border-color: #7799e3; box-shadow: 0 0 0 3px rgba(49, 95, 196, 0.12), var(--shadow-card); transform: translateY(-2px); }
+    .player-name { font-weight: 800; letter-spacing: -0.01em; }
+    .turn-tag { padding: 6px 10px; border: 1px solid #ccd9f4; border-radius: 999px; background: var(--color-primary-soft); color: #294f9b; font-size: 0.72rem; font-weight: 850; letter-spacing: 0.045em; }
+    .preview { display: grid; min-height: 172px; margin-top: 15px; overflow: hidden; place-items: center; border: 1px dashed #aebbc9; border-radius: 17px; background-color: #e3eaf1; background-image: radial-gradient(rgba(108, 129, 151, 0.15) 1px, transparent 1px); background-position: center; background-size: 15px 15px; text-align: center; }
+    .preview-icon { font-size: 2.5rem; filter: drop-shadow(0 3px 3px rgba(63, 75, 93, 0.13)); }
+    .preview p { max-width: 240px; margin: 7px 12px 0; color: #505c69; font-size: 0.91rem; }
+    .camera-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 13px; }
+    .camera-actions button { min-height: 44px; font-size: 0.9rem; }
+    .camera-status { min-height: 1.5em; margin: 10px 1px 0; color: #535e6c; font-size: 0.84rem; line-height: 1.45; }
+    .prediction-readout { display: flex; align-items: baseline; gap: 10px; min-height: 39px; margin: 8px 1px 0; }
+    .prediction-letter { color: #2d55a5; font-size: 1.6rem; font-weight: 900; line-height: 1; }
+    .prediction-detail { color: var(--color-muted); font-size: 0.82rem; }
+    video { display: block; width: 100%; max-height: 280px; border-radius: 16px; background: #20262b; object-fit: cover; transform: scaleX(-1); }
+
+    .game-grid { display: grid; grid-template-columns: 1.08fr 0.92fr; gap: 18px; margin-top: 18px; }
+    .word-card, .image-card { min-height: 250px; padding: 23px; }
+    .word-card { display: flex; flex-direction: column; }
+    .letter-slots { display: flex; gap: 11px; margin: 17px 0 12px; }
+    .letter { display: grid; width: 58px; height: 64px; place-items: center; border: 1.5px dashed #aeb9c8; border-radius: 17px; background: var(--color-surface-raised); color: #28324a; font-size: 1.8rem; font-weight: 900; box-shadow: 0 2px 5px rgba(50, 60, 79, 0.04); transition: background var(--motion-fast), border-color var(--motion-fast), transform var(--motion-fast); }
+    .letter.filled { border-style: solid; border-color: #91afe9; background: #edf3ff; transform: translateY(-2px); }
+    .turn-row { justify-content: flex-start; flex-wrap: wrap; margin-top: auto; padding-top: 16px; border-top: 1px solid #eceef2; color: var(--color-muted); font-size: 0.9rem; }
+    .turn-arrow { color: var(--color-accent); font-size: 1.3rem; font-weight: 900; }
+    .image-placeholder { display: grid; min-height: 150px; place-items: center; border: 1px solid #f0dfcd; border-radius: 18px; background: radial-gradient(circle at 50% 40%, #fff5df 0 27%, transparent 28%), linear-gradient(135deg, #fff3e4, #f3eafd); text-align: center; }
+    .cat-art { display: inline-grid; width: 88px; height: 88px; margin-bottom: 3px; place-items: center; border: 1px solid #efcfb8; border-radius: 30px 36px 28px 37px; background: #fffdf7; box-shadow: 0 8px 18px rgba(162, 113, 74, 0.12); font-size: 3.2rem; transform: rotate(-4deg); }
+    .image-caption { margin: 10px 0 0; color: var(--color-muted); font-size: 0.82rem; text-align: center; }
+
+    .controls-card { padding: 22px 23px; margin-top: 18px; }
+    .controls { display: flex; flex-wrap: wrap; align-items: end; gap: 11px; margin-top: 17px; }
+    .field { display: grid; gap: 7px; color: #535d6c; font-size: 0.84rem; font-weight: 750; }
+    select { min-height: 48px; padding: 0.55rem 0.85rem; border: 1px solid #c9d0db; border-radius: var(--radius-control); background: white; color: var(--color-foreground); }
+    .secondary { border: 1px solid #c9d0db; color: #303846; background: white; box-shadow: 0 3px 0 #d8dde5; }
+    .secondary:hover:not(:disabled) { background: #f4f6fa; }
+    .notice { min-height: 1.5em; margin: 14px 0 0; color: #404754; font-size: 0.92rem; }
+    .fine-print { margin: 17px 4px 0; color: #5d6470; font-size: 0.83rem; line-height: 1.6; }
+    .completed { color: #287642; font-weight: 800; }
+
+    @media (max-width: 760px) {
+      .page { width: min(100% - 28px, 560px); padding: 18px 0 34px; }
+      header { align-items: flex-start; flex-wrap: wrap; margin-bottom: 19px; }
+      .brand { gap: 11px; }
+      .brand-mark { width: 48px; height: 48px; border-radius: 16px; }
+      .badge { margin-left: 59px; font-size: 0.78rem; }
+      .players, .game-grid { grid-template-columns: 1fr; gap: 14px; }
+      .preview { min-height: 150px; }
+      .score-card, .word-card, .image-card, .controls-card { padding: 18px; }
+      .word-card, .image-card { min-height: 0; }
+      .image-placeholder { min-height: 140px; }
+    }
+
+    @media (max-width: 420px) {
+      .page { width: calc(100% - 22px); }
+      .score-row { align-items: flex-start; gap: 8px; }
+      .score-number { font-size: 1.55rem; }
+      .score-number span { display: block; margin-top: 3px; font-size: 0.83rem; }
+      .timer { padding: 7px 9px; font-size: 1rem; }
+      .letter { width: 54px; height: 59px; }
+      .controls { align-items: stretch; }
+      .controls > button, .field, .field select { width: 100%; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">🤟</div>
+        <div>
+          <h1>SignSync</h1>
+          <p class="subhead">A little game, made together.</p>
+        </div>
+      </div>
+      <span class="badge"><span class="dot" aria-hidden="true"></span><span>Local practice · one browser</span></span>
+    </header>
+
+    <section class="card score-card" aria-label="Round status">
+      <div class="score-row">
+        <div>
+          <div class="muted">Team score</div>
+          <div class="score-number"><span id="score">0</span> <span>/ 500 points</span></div>
+        </div>
+        <div>
+          <div class="muted">Round timer · demo only</div>
+          <div class="timer" aria-label="Two minutes">02:00</div>
+        </div>
+      </div>
+      <div class="progress" role="progressbar" aria-label="Progress toward 500 points" aria-valuemin="0" aria-valuemax="500" aria-valuenow="0">
+        <div class="progress-fill" id="progress"></div>
+      </div>
+    </section>
+
+    <section class="players" aria-label="Players">
+      <article class="player active" id="player-one">
+        <div class="player-top">
+          <span class="player-name">Player 1 · Camera</span>
+          <span class="turn-tag" id="tag-one">YOUR TURN</span>
+        </div>
+        <div class="preview" id="camera-preview" aria-label="Camera preview">
+          <div><div class="preview-icon" aria-hidden="true">📷</div><p>Your camera is off. Enable it when you're ready.</p></div>
+        </div>
+        <div class="camera-actions">
+          <button type="button" id="camera-start">Enable local ASL recognition</button>
+          <button type="button" class="secondary" id="camera-stop" hidden>Turn camera off</button>
+        </div>
+        <p class="camera-status" id="camera-status" role="status" aria-live="polite">Camera is off. Enable local ASL recognition to request permission. Camera frames and hand landmarks stay in this browser.</p>
+        <div class="prediction-readout" aria-live="polite">
+          <span class="prediction-letter" id="live-prediction">—</span>
+          <span class="prediction-detail" id="prediction-detail">No stable handshape yet</span>
+        </div>
+      </article>
+      <article class="player" id="player-two">
+        <div class="player-top">
+          <span class="player-name">Player 2 · Local turn</span>
+          <span class="turn-tag" id="tag-two" hidden>YOUR TURN</span>
+        </div>
+        <div class="preview" aria-label="Second player's preview unavailable in this demo">
+          <div><div class="preview-icon" aria-hidden="true">👋</div><p>Turns alternate in this browser; a second device is not connected.</p></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="game-grid">
+      <article class="card word-card">
+        <div>
+          <h2>Spell the word</h2>
+          <p class="muted">The target stays visible during this local practice round.</p>
+          <div class="letter-slots" id="letters" aria-label="CAT, no letters confirmed yet">
+            <span class="letter" data-index="0">?</span>
+            <span class="letter" data-index="1">?</span>
+            <span class="letter" data-index="2">?</span>
+          </div>
+          <strong>Target: CAT</strong>
+        </div>
+        <div class="turn-row"><span id="turn-copy">Player 1 signs the first letter</span><span class="turn-arrow" aria-hidden="true">→</span><span>then alternate</span></div>
+      </article>
+
+      <article class="card image-card">
+        <h2>Our shared picture</h2>
+        <div class="image-placeholder" id="image">
+          <div>
+            <div class="cat-art" aria-hidden="true">✨ 🐈 ✨</div>
+            <div id="image-copy">A picture will appear after the word.</div>
+          </div>
+        </div>
+        <p class="image-caption" id="image-caption">Illustration only · no image service connected</p>
+      </article>
+    </section>
+
+    <section class="card controls-card" aria-labelledby="controls-title">
+      <h2 id="controls-title">Confirm the next letter</h2>
+      <p class="muted">Real predictions use the existing classifier in this browser. Release your hand after confirming. You can also simulate a prediction for testing.</p>
+      <div class="controls">
+        <button type="button" class="secondary" id="simulate">Simulate expected letter</button>
+        <label class="field" for="prediction">Prediction to review
+          <select id="prediction" disabled>
+            <option value="">No prediction</option>
+            <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+            <option value="D">D</option><option value="E">E</option><option value="F">F</option>
+            <option value="G">G</option><option value="H">H</option><option value="I">I</option>
+            <option value="J">J</option><option value="K">K</option><option value="L">L</option>
+            <option value="M">M</option><option value="N">N</option><option value="O">O</option>
+            <option value="P">P</option><option value="Q">Q</option><option value="R">R</option>
+            <option value="S">S</option><option value="T">T</option><option value="U">U</option>
+            <option value="V">V</option><option value="W">W</option><option value="X">X</option>
+            <option value="Y">Y</option><option value="Z">Z</option>
+          </select>
+        </label>
+        <button type="button" class="secondary" id="retry" disabled>Retry</button>
+        <button type="button" id="confirm" disabled>Confirm letter</button>
+        <button type="button" class="secondary" id="reset">Reset demo</button>
+      </div>
+      <p class="notice" id="notice" role="status" aria-live="polite">Ready when you are. Simulate a prediction to begin.</p>
+    </section>
+
+    <p class="fine-print">Camera privacy: video and hand landmarks are processed locally and are not uploaded or stored. The page downloads its inference libraries from CDNs; those downloads do not include camera data. This is a single-browser prototype, not multiplayer; the timer, scoring rules, image generation, and motion-dependent J/Z recognition are not complete. Recognition can be inaccurate and is not full ASL translation. Camera access requires HTTPS or localhost.</p>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/ort.min.js"></script>
+  <script>
+    (() => {
+      const target = "CAT";
+      const scorePerWord = 100;
+      const stableFrameThreshold = 20;
+      const releaseFrameThreshold = 8;
+      const mediaPipeVersion = "0.10.14";
+      const mediaPipeWasm = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${mediaPipeVersion}/wasm`;
+      const handLandmarkerModel = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
+      let accepted = "";
+      const acceptedSources = [];
+      let currentPlayer = 0;
+
+      const letterSlots = [...document.querySelectorAll(".letter")];
+      const select = document.querySelector("#prediction");
+      const simulateButton = document.querySelector("#simulate");
+      const retryButton = document.querySelector("#retry");
+      const confirmButton = document.querySelector("#confirm");
+      const resetButton = document.querySelector("#reset");
+      const notice = document.querySelector("#notice");
+      const cameraPreview = document.querySelector("#camera-preview");
+      const cameraStart = document.querySelector("#camera-start");
+      const cameraStop = document.querySelector("#camera-stop");
+      const cameraStatus = document.querySelector("#camera-status");
+      const livePrediction = document.querySelector("#live-prediction");
+      const predictionDetail = document.querySelector("#prediction-detail");
+      const inferenceCanvas = document.createElement("canvas");
+      const inferenceContext = inferenceCanvas.getContext("2d");
+      let cameraStream = null;
+      let handLandmarker = null;
+      let classifierSession = null;
+      let classLabels = null;
+      let currentPrediction = "";
+      let predictionSource = "";
+      let predictionScore = null;
+      let lastStableLabel = "";
+      let stableCount = 0;
+      let releaseCount = 0;
+      let waitingForRelease = false;
+      let animationFrame = 0;
+      let lastInferenceAt = 0;
+      let processingFrame = false;
+
+      function render() {
+        letterSlots.forEach((slot, index) => {
+          const value = accepted[index] || "?";
+          slot.textContent = value;
+          slot.classList.toggle("filled", Boolean(accepted[index]));
+        });
+        document.querySelector("#letters").setAttribute("aria-label", `${target}, ${accepted.length ? `confirmed letters ${[...accepted].join(", ")}` : "no letters confirmed yet"}`);
+        document.querySelector("#player-one").classList.toggle("active", currentPlayer === 0 && accepted.length < target.length);
+        document.querySelector("#player-two").classList.toggle("active", currentPlayer === 1 && accepted.length < target.length);
+        document.querySelector("#tag-one").hidden = currentPlayer !== 0 || accepted.length === target.length;
+        document.querySelector("#tag-two").hidden = currentPlayer !== 1 || accepted.length === target.length;
+        document.querySelector("#turn-copy").textContent = accepted.length === target.length
+          ? "Word complete!"
+          : `Player ${currentPlayer + 1} signs the ${["first", "second", "third"][accepted.length]} letter`;
+
+        const complete = accepted === target;
+        const score = complete ? scorePerWord : 0;
+        document.querySelector("#score").textContent = score;
+        document.querySelector(".progress").setAttribute("aria-valuenow", String(score));
+        document.querySelector("#progress").style.width = `${score / 5}%`;
+        document.querySelector("#image-copy").textContent = complete ? "CAT complete!" : "A picture will appear after the word.";
+        document.querySelector("#image-caption").textContent = complete
+          ? "Illustrative placeholder · mock image, not AI-generated"
+          : "Illustration only · no image service connected";
+        simulateButton.disabled = complete || Boolean(cameraStream);
+        select.disabled = !select.value || complete || Boolean(cameraStream);
+        retryButton.disabled = !select.value || complete;
+        confirmButton.disabled = !select.value || complete;
+      }
+
+      simulateButton.addEventListener("click", () => {
+        select.value = target[accepted.length];
+        currentPrediction = select.value;
+        predictionSource = "simulated";
+        livePrediction.textContent = currentPrediction;
+        predictionDetail.textContent = "Simulated · not camera recognition";
+        notice.textContent = `Simulated prediction: ${select.value}. Review it, then confirm.`;
+        render();
+      });
+
+      select.addEventListener("change", () => {
+        currentPrediction = select.value;
+        predictionSource = select.value ? "simulated" : "";
+        notice.textContent = select.value
+          ? `Simulated prediction: ${select.value}. Review it, then confirm.`
+          : "Prediction cleared. Simulate again when ready.";
+        render();
+      });
+
+      retryButton.addEventListener("click", () => {
+        waitingForRelease = predictionSource === "camera";
+        currentPrediction = "";
+        predictionSource = "";
+        predictionScore = null;
+        releaseCount = 0;
+        stableCount = 0;
+        lastStableLabel = "";
+        select.value = "";
+        livePrediction.textContent = "—";
+        predictionDetail.textContent = waitingForRelease
+          ? "Release your hand before trying again"
+          : "No stable handshape yet";
+        notice.textContent = waitingForRelease
+          ? "Prediction cleared. Release your hand from the camera view before trying again."
+          : "Prediction cleared. Simulate again when ready.";
+        render();
+        if (cameraStream) {
+          cameraStop.focus();
+        } else {
+          simulateButton.focus();
+        }
+      });
+
+      confirmButton.addEventListener("click", () => {
+        const expected = target[accepted.length];
+        if (select.value !== expected) {
+          notice.textContent = `Not the expected letter for this demo step. Expected ${expected}; retry the prediction.`;
+          return;
+        }
+        const confirmedLetter = select.value;
+        const confirmedSource = predictionSource;
+        accepted += select.value;
+        acceptedSources.push(confirmedSource);
+        select.value = "";
+        currentPrediction = "";
+        predictionSource = "";
+        predictionScore = null;
+        if (confirmedSource === "camera") {
+          waitingForRelease = true;
+          livePrediction.textContent = "—";
+          predictionDetail.textContent = "Release your hand to re-arm";
+        }
+        if (accepted === target) {
+          const recognizedCount = acceptedSources.filter((source) => source === "camera").length;
+          const simulatedCount = acceptedSources.length - recognizedCount;
+          notice.textContent = `CAT complete! ${recognizedCount} letter${recognizedCount === 1 ? "" : "s"} browser-recognized, ${simulatedCount} simulated. Demo score: ${scorePerWord} points. The picture is illustrative, not AI-generated.`;
+          notice.classList.add("completed");
+        } else {
+          currentPlayer = 1 - currentPlayer;
+          notice.textContent = `${confirmedLetter} ${confirmedSource === "camera" ? "recognized in this browser and" : "simulated and"} confirmed. Player ${currentPlayer + 1}, your local turn.`;
+        }
+        render();
+      });
+
+      resetButton.addEventListener("click", () => {
+        accepted = "";
+        acceptedSources.length = 0;
+        currentPlayer = 0;
+        select.value = "";
+        currentPrediction = "";
+        predictionSource = "";
+        predictionScore = null;
+        waitingForRelease = Boolean(cameraStream);
+        releaseCount = 0;
+        stableCount = 0;
+        lastStableLabel = "";
+        livePrediction.textContent = "—";
+        predictionDetail.textContent = waitingForRelease ? "Release your hand to re-arm" : "No stable handshape yet";
+        notice.textContent = "Demo reset. Player 1 starts with C.";
+        notice.classList.remove("completed");
+        render();
+        if (cameraStream) {
+          cameraStop.focus();
+        } else {
+          simulateButton.focus();
+        }
+      });
+
+      async function loadRecognition() {
+        if (!window.ort) {
+          throw new Error("ONNX Runtime Web did not load. Check the network connection and reload.");
+        }
+        if (!classifierSession) {
+          classifierSession = await window.ort.InferenceSession.create("./assets/asl_classifier.onnx", {
+            executionProviders: ["wasm"]
+          });
+          const response = await fetch("./assets/asl_classes.json");
+          if (!response.ok) {
+            throw new Error(`Could not load classifier labels (HTTP ${response.status}).`);
+          }
+          classLabels = await response.json();
+          if (!Array.isArray(classLabels) || classLabels.length !== 26 || classLabels.some((label) => typeof label !== "string")) {
+            throw new Error("Classifier labels are missing or invalid.");
+          }
+        }
+        if (!handLandmarker) {
+          const vision = await import(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${mediaPipeVersion}/vision_bundle.mjs`);
+          const fileset = await vision.FilesetResolver.forVisionTasks(mediaPipeWasm);
+          handLandmarker = await vision.HandLandmarker.createFromOptions(fileset, {
+            baseOptions: { modelAssetPath: handLandmarkerModel },
+            runningMode: "VIDEO",
+            numHands: 1,
+            minHandDetectionConfidence: 0.6,
+            minHandPresenceConfidence: 0.6,
+            minTrackingConfidence: 0.5
+          });
+        }
+      }
+
+      function normalizeLandmarks(hand) {
+        const values = new Float32Array(63);
+        let minimum = Infinity;
+        for (let index = 0; index < hand.length; index += 1) {
+          const point = hand[index];
+          const offset = index * 3;
+          values[offset] = point.x;
+          values[offset + 1] = point.y;
+          values[offset + 2] = point.z;
+          minimum = Math.min(minimum, point.x, point.y, point.z);
+        }
+        let maximum = 0;
+        for (let index = 0; index < values.length; index += 1) {
+          values[index] -= minimum;
+          maximum = Math.max(maximum, values[index]);
+        }
+        if (maximum !== 0) {
+          for (let index = 0; index < values.length; index += 1) {
+            values[index] /= maximum;
+          }
+        }
+        return values;
+      }
+
+      function observeNoHand() {
+        lastStableLabel = "";
+        stableCount = 0;
+        if (!waitingForRelease) {
+          return;
+        }
+        releaseCount += 1;
+        if (releaseCount >= releaseFrameThreshold) {
+          waitingForRelease = false;
+          releaseCount = 0;
+          cameraStatus.textContent = "Hand released. Ready for the next sign; inference stays in this browser.";
+          predictionDetail.textContent = "No stable handshape yet";
+        }
+      }
+
+      async function recognizeFrame(timestamp) {
+        if (!cameraStream) {
+          return;
+        }
+        if (
+          !processingFrame &&
+          timestamp - lastInferenceAt >= 100 &&
+          cameraPreview.querySelector("video")?.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+        ) {
+          processingFrame = true;
+          lastInferenceAt = timestamp;
+          try {
+            const video = cameraPreview.querySelector("video");
+            if (inferenceCanvas.width !== video.videoWidth || inferenceCanvas.height !== video.videoHeight) {
+              inferenceCanvas.width = video.videoWidth;
+              inferenceCanvas.height = video.videoHeight;
+            }
+            inferenceContext.save();
+            inferenceContext.translate(inferenceCanvas.width, 0);
+            inferenceContext.scale(-1, 1);
+            inferenceContext.drawImage(video, 0, 0, inferenceCanvas.width, inferenceCanvas.height);
+            inferenceContext.restore();
+            const result = handLandmarker.detectForVideo(inferenceCanvas, timestamp);
+            if (!result.landmarks.length) {
+              observeNoHand();
+              if (currentPrediction && predictionSource === "camera") {
+                livePrediction.textContent = currentPrediction;
+                predictionDetail.textContent = `Model score ${(predictionScore * 100).toFixed(1)}% · ready to confirm`;
+              } else {
+                predictionDetail.textContent = waitingForRelease
+                  ? `Release hand · ${releaseCount}/${releaseFrameThreshold}`
+                  : "No hand detected";
+              }
+            } else if (waitingForRelease) {
+              releaseCount = 0;
+              predictionDetail.textContent = "Release your hand to re-arm";
+            } else if (currentPrediction && predictionSource === "camera") {
+              livePrediction.textContent = currentPrediction;
+              predictionDetail.textContent = `Model score ${(predictionScore * 100).toFixed(1)}% · ready to confirm`;
+            } else {
+              const input = new window.ort.Tensor("float32", normalizeLandmarks(result.landmarks[0]), [1, 63]);
+              const output = await classifierSession.run({ landmarks: input });
+              const logits = output.logits.data;
+              let maxLogit = -Infinity;
+              let predictedIndex = 0;
+              for (let index = 0; index < logits.length; index += 1) {
+                if (logits[index] > maxLogit) {
+                  maxLogit = logits[index];
+                  predictedIndex = index;
+                }
+              }
+              let exponentialTotal = 0;
+              for (const logit of logits) {
+                exponentialTotal += Math.exp(logit - maxLogit);
+              }
+              const rawScore = 1 / exponentialTotal;
+              const label = classLabels[predictedIndex];
+              stableCount = label === lastStableLabel ? stableCount + 1 : 0;
+              lastStableLabel = label;
+              predictionScore = rawScore;
+              livePrediction.textContent = label;
+              const stableFrames = Math.min(stableCount + 1, stableFrameThreshold + 1);
+              predictionDetail.textContent = `Model score ${(rawScore * 100).toFixed(1)}% · stable ${stableFrames}/${stableFrameThreshold + 1}`;
+              if (stableCount >= stableFrameThreshold && !currentPrediction) {
+                currentPrediction = label;
+                predictionSource = "camera";
+                select.value = label;
+                predictionDetail.textContent = `Model score ${(rawScore * 100).toFixed(1)}% · ready to confirm`;
+                cameraStatus.textContent = "Stable prediction ready. Review it and confirm; video and landmarks stay in this browser.";
+                notice.textContent = `Browser model predicts ${label}. Review the letter before confirming.`;
+                render();
+              }
+            }
+          } catch (error) {
+            const message = `Local recognition stopped: ${error.message || "unknown error"}`;
+            stopCamera();
+            cameraStatus.textContent = message;
+            return;
+          } finally {
+            processingFrame = false;
+          }
+        }
+        animationFrame = requestAnimationFrame(recognizeFrame);
+      }
+
+      function stopCamera() {
+        cancelAnimationFrame(animationFrame);
+        cameraStream?.getTracks().forEach((track) => track.stop());
+        cameraStream = null;
+        handLandmarker?.close();
+        handLandmarker = null;
+        lastStableLabel = "";
+        stableCount = 0;
+        releaseCount = 0;
+        waitingForRelease = false;
+        const offMessage = document.createElement("div");
+        offMessage.innerHTML = '<div class="preview-icon" aria-hidden="true">📷</div><p>Your camera is off. Enable it when you’re ready.</p>';
+        cameraPreview.replaceChildren(offMessage);
+        cameraStart.hidden = false;
+        cameraStop.hidden = true;
+        currentPrediction = "";
+        predictionSource = "";
+        predictionScore = null;
+        select.value = "";
+        livePrediction.textContent = "—";
+        predictionDetail.textContent = "No stable handshape yet";
+        render();
+      }
+
+      cameraStart.addEventListener("click", async () => {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          cameraStatus.textContent = "Camera access is unavailable here. Open this hosted page over HTTPS (or use localhost) in a supported browser.";
+          return;
+        }
+
+        cameraStart.disabled = true;
+        cameraStatus.textContent = "Requesting camera permission. Video will be processed only in this browser.";
+        try {
+          cameraStream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: { facingMode: "user" }
+          });
+          const video = document.createElement("video");
+          video.autoplay = true;
+          video.muted = true;
+          video.playsInline = true;
+          video.setAttribute("aria-label", "Your live camera preview");
+          video.srcObject = cameraStream;
+          cameraPreview.replaceChildren(video);
+          cameraStart.hidden = true;
+          cameraStop.hidden = false;
+          await video.play();
+          cameraStatus.textContent = "Loading the local hand detector and classifier…";
+          await loadRecognition();
+          cameraStatus.textContent = "Local recognition is on. Hold a handshape steady, then review and confirm the prediction.";
+          animationFrame = requestAnimationFrame(recognizeFrame);
+        } catch (error) {
+          const messages = {
+            NotAllowedError: "Camera permission was denied or blocked. Allow camera access in your browser settings, then try again.",
+            NotFoundError: "No available camera was found on this device.",
+            NotReadableError: "The camera is already in use or could not be started."
+          };
+          const message = messages[error.name] || `Could not start local recognition (${error.message || error.name || "unknown error"}). Check browser permissions and network access, then try again.`;
+          stopCamera();
+          cameraStatus.textContent = message;
+        } finally {
+          cameraStart.disabled = false;
+        }
+      });
+
+      cameraStop.addEventListener("click", () => {
+        stopCamera();
+        cameraStatus.textContent = "Camera is off. Choose Enable local ASL recognition to request permission.";
+      });
+
+      window.addEventListener("pagehide", stopCamera);
+
+      render();
+    })();
+  </script>
+</body>
+</html>

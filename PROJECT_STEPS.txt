@@ -1,0 +1,145 @@
+SignSync project breakdown
+=========================
+
+Purpose
+-------
+Build SignSync in small, testable stages. Do not present mock recognition,
+mock images, or a local-only demo as real service integrations.
+
+Current status
+--------------
+[x] Read the project README and record the intended build order.
+[x] Create a small, standalone UI/gameplay-flow demo (now index.html).
+[x] Add an explicit, user-initiated local camera permission and preview flow.
+[x] Inspect the ASL recognition repository README, inference source, model,
+    preprocessing, and declared dependencies.
+[x] Install the upstream dependencies in an isolated Python 3.12 environment.
+[x] Load the upstream model and recognize a live camera C handshape.
+[x] Check PyTorch-to-ONNX conversion and browser runtime compatibility.
+[x] User confirmed permission to bundle the classifier.
+[x] Export ONNX classifier and connect browser-local webcam inference.
+[x] Verify live hand recognition and explicit confirmation in the local static page.
+[ ] Test more static letters and investigate the motion-dependent J/Z limits.
+
+Step 1 - Verify ASL recognition (partial; one static letter tested)
+----------------------------------------------------------------------------
+Repository reviewed: https://github.com/Gj-345/asl-hand-gesture-recognition
+
+Source-confirmed facts:
+- The repository includes ml/models/best_model.pth (326,197 bytes),
+  ml/models/classes.pkl (120 bytes), and ml/hand_landmarker.task
+  (7,819,105 bytes). Model artifacts are present in the public repository.
+- app.py loads those artifacts from paths relative to the current directory;
+  run it from the recognition repository root.
+- app.py opens webcam device 0 via OpenCV, flips frames, detects one hand with
+  MediaPipe, flattens 21 x/y/z points into 63 values, then subtracts the
+  minimum and divides by the maximum (unless zero).
+- ml/model.py defines a 63-input PyTorch classifier. app.py applies softmax
+  and returns the maximum class and score. That score is a model probability,
+  not verified/calibrated confidence.
+- README claims 26 A-Z labels. ml/convert.py derives sorted one-character
+  alphabet labels from dataset folders. J and Z are listed as classes, but
+  the pipeline classifies a single frame of static landmarks; reliable
+  motion-dependent J/Z behavior is not established.
+- app.py appends a prediction after 20 stable frames. It has no neutral-pose
+  release re-arming, so a held pose may append repeatedly. Its UI displays a
+  probability but does not gate acceptance on a threshold.
+- requirements.txt lists torch, torchvision, mediapipe, opencv-python, numpy,
+  matplotlib, joblib, tqdm, flask, and flask-cors without version pins.
+- Inference command from the repository root: python app.py. On macOS/Linux,
+  the usual isolated setup is:
+    python3 -m venv .venv
+    source .venv/bin/activate
+    python -m pip install -r requirements.txt
+    python app.py
+
+Local verification status:
+- Upstream requirements installed into an isolated Python 3.12 virtual
+  environment outside the project. No dependencies were added to the static
+  website.
+- Confirmed the saved model loads, the MediaPipe detector initializes, and
+  the local camera supplies frames.
+- Tested a live C handshape. The detector found a hand; the classifier
+  predicted C with a raw softmax score of 0.9990 at the 21st consecutive
+  frame, crossing the upstream 20-frame threshold. The frame was processed
+  locally and not saved.
+- This verifies one static handshape only. It does not validate all letters,
+  probability calibration, general accuracy, or motion-dependent J/Z.
+
+Checkpoint: model setup and one live static-letter inference work locally.
+The user chose browser-local inference; do not transmit camera frames. The
+browser-local path also predicted and accepted C from the camera, then required
+hand release before re-arming. Test more static letters and investigate the
+motion-dependent J/Z limits before claiming broader recognition support.
+
+Step 2 - Integrate browser-local inference (complete)
+-----------------------------------------------------
+The user selected browser-local inference. An ONNX export of the
+upstream PyTorch classifier (320,660 bytes) matched PyTorch for 8 test vectors
+(maximum logit absolute error 5.72e-6, zero predicted-class mismatches).
+ONNX Runtime Web also loaded that export in a browser and returned 26 logits.
+This verifies classifier conversion/runtime. The local static site also
+verified browser MediaPipe capture, prediction confirmation, and release
+re-arming with a live C handshape.
+
+No upstream LICENSE file was found in the checked-out repository. The user
+confirmed permission to bundle the classifier. The MediaPipe hand-landmarker
+asset remains loaded from its publisher's hosted location and was not copied.
+Browser-local inference is integrated: MediaPipe hand landmarks use the
+upstream normalization, then the ONNX classifier; predictions require explicit
+confirmation and the hand must be released before re-arming. Camera frames
+and landmarks are not sent to a server. The simulation remains available and
+clearly labeled.
+
+Step 3 - Build one real multiplayer game loop
+---------------------------------------------
+Create/join a room for exactly two players; show camera status and previews;
+implement turn ownership, prediction confirmation/retry, and shared accepted
+letters. The server must validate whose turn it is and broadcast the result.
+Checkpoint: two separate browsers see the same letters and alternating turns.
+
+Step 4 - Add validated words, score, and timer
+----------------------------------------------
+Add a small word bank (start with CAT), a server-authoritative two-minute
+round, team score toward 500, and unique action IDs to prevent duplicate
+scoring. Handle reconnects and invalid submissions.
+Checkpoint: acceptance tests for valid completion, timer expiry, and duplicate
+events pass.
+
+Step 5 - Add image generation behind an adapter
+------------------------------------------------
+Verify actual Muse Image access, endpoint, and credentials before integration.
+Generate only after a valid word; synchronize one result to both players and
+handle loading, timeout, failure, and retry. Label any mock mode.
+Checkpoint: verified real integration or an explicit, labeled unavailable
+service state.
+
+Step 6 - Add communication
+--------------------------
+Add real-time text chat. Add optional speech transcription only if a supported
+browser/API is available; request microphone access only after user activation.
+Checkpoint: chat works and the game remains playable without a microphone.
+
+Step 7 - Add results and sharing
+--------------------------------
+Show accurate round statistics and implement only a verified, user-initiated
+sharing flow. Do not assume direct Facebook timeline publishing is allowed.
+Checkpoint: results are accurate and sharing excludes webcam footage/private
+chat and requires an explicit action.
+
+Step 8 - Polish and test
+------------------------
+Match the reference style, check mobile layouts and keyboard accessibility,
+and test camera denial, hand loss, low confidence, disconnect/reconnect,
+generation failures, and timer expiry. Document setup and known limitations.
+Checkpoint: the README acceptance tests are covered without pretending
+unavailable services work.
+
+Demo scope (current)
+--------------------
+index.html is a static-hostable UI prototype for one CAT round. It can request
+camera permission after the user clicks Enable local ASL recognition. The
+classifier and hand landmarks run in the browser; frames are not uploaded or
+stored. It is a single-browser practice flow, not a multiplayer game. Its
+simulation control remains clearly labeled; image generation is illustrative,
+the timer does not run, and there is no networking or game backend.
