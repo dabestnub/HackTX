@@ -193,7 +193,7 @@ Server to client:
 | Q19 | **Images come back as base64**, are held in room memory, and are served at a URL announced over the WebSocket. If generation fails or takes over **10 seconds**, a placeholder showing the phrase is used. Requests use `reasoning_strength="low"` with web and image search off. |
 | Q20 | **The backend serves a minimal test page at /dev.** Automated tests cover game logic, plus a protocol smoke test. A stub recognizer exists only inside the tests. |
 | Q21 | **One shared-cpu-2x machine with 2 GB in dfw**, auto-stop off, Python 3.12 image. |
-| Q22 | **The user is unsure where the UI will be hosted.** This does not block anything. Browsers do not apply CORS to WebSockets, and `<img>` tags load images from any origin. The backend still allows all origins on HTTP so `fetch()` works from anywhere. A UI can be hosted on Vercel, Netlify, or locally. |
+| Q22 | **The frontend is hosted on Vercel, and the backend stays on one fly.io machine** (decided 2026-10-24). Vercel was checked as a backend host and rejected: its WebSockets close at the function's maximum duration (5 minutes on Hobby), and new connections are not guaranteed to reach the same instance, so in-memory rooms (Q2) would split players and need Redis plus pub/sub. Browsers do not apply CORS to WebSockets, and `<img>` tags load images from any origin. The backend still allows all origins on HTTP so `fetch()` from the Vercel site works. |
 
 Other facts from round 2: the user has run the repo's app and it works. They have a Muse key and will supply it later, set as the `MODEL_API_KEY` environment variable or fly secret.
 
@@ -220,7 +220,7 @@ Superseded by the 13-task plan in `docs/superpowers/plans/2026-10-24-asl-coop-ba
 
 ## 16. Implementation status
 
-Updated after every implemented task. Each task is built by one coding agent, then passes a spec review and a code quality review before it is pushed to `backend-shit`.
+Updated after every completed task. Each task is built by a coding agent and passes an independent spec and code quality review before it is marked complete. This continuation keeps commits local on `backend-shit`; deployment and pushing remain separate steps.
 
 | Task | What | Status | Commit |
 |---|---|---|---|
@@ -232,13 +232,13 @@ Updated after every implemented task. Each task is built by one coding agent, th
 | 6 | Engine 1/3: rooms, lobby, countdown, round start | Done | 8b5710a |
 | 7 | Engine 2/3: signing, images, scoring, game over | Done | 72304ba |
 | 8 | Engine 3/3: timeout, disconnect, reconnect | Done | 9b9414d |
-| 9 | Muse client and placeholder image | Not started | |
-| 10 | FastAPI server and WebSocket protocol | Not started | |
-| 11 | `docs/protocol.md` for the frontend teammate | Not started | |
-| 12 | `/dev` camera test page | Not started | |
-| 13 | Dockerfile and fly.toml | Not started | |
+| 9 | Muse client and placeholder image | Done | 764b3e0 |
+| 10 | FastAPI server and WebSocket protocol | Done (reviewed) | 6099bf8, e1dd5ca |
+| 11 | `docs/protocol.md` for the frontend teammate | Done (reviewed) | 6d7bbee |
+| 12 | `/dev` camera test page | Done (reviewed) | 938601a |
+| 13 | Dockerfile and fly.toml | Done (reviewed) | 8aab363 |
 
-Tests: 47 passing at Task 8 (`uv run pytest -q`).
+Final integration: 78 Python tests pass (32.34 s), with one upstream FastAPI/Starlette TestClient deprecation warning, using a Docker Python 3.12 environment synchronized from `uv.lock`. The camera page's 12 Node behavior checks and inline JavaScript syntax check pass. The production image builds and serves `/healthz` and `/dev` with HTTP 200; real blank-frame recognition passes. Every implementation task has passed independent spec and code quality review; a final whole-branch review follows.
 
 Decisions made during the build, beyond the interview answers:
 - After an image appears, it shows for 5 seconds (`reveal`) before the next 3-second countdown. Both values are in `server/config.py`.
@@ -250,3 +250,8 @@ Decisions made during the build, beyond the interview answers:
 - Known edge case: if frames stop mid-hold and resume on the same letter, the hold can complete at once. This is low risk; revisit it if the camera test shows false accepts.
 - If an image arrives while a player is reconnecting, its reveal runs longer than 5 seconds by the length of the pause. This is harmless and left as is.
 - Not tested yet: a frame with a real hand. The first camera test is the first check of that path.
+- Rejected or oversized camera frames now reset the affected letter hold. Oversized input also discards older queued and in-flight frames, so they cannot restore the rejected hold. Regression tests cover both rejection paths.
+- The Windows copy contained a truncated hand model and two corrupt Git model objects. The exact original model was restored from upstream commit `9de5b22` (7,819,105 bytes, tracked Git blob `0d53faf3786146e95c5bc010c48029ff16b7fa59`); the classifier's existing bytes already matched its tracked hash. Backups are in `.cache/copy-recovery-backup`. Three empty invalid remote-tracking refs were backed up and removed; local history is intact and `git fsck` passes.
+- The copied `.venv` belongs to Linux and was preserved. Windows validation uses Docker with Python 3.12 and dependencies synchronized from `uv.lock`. The production image needs `libegl1` and `libgles2` in addition to `libgl1` and `libglib2.0-0`; real blank-frame recognition passes in the built image.
+- To try the camera page locally with Docker: `docker build -t asl-coop:dev .`, then `docker run --rm -p 18080:8080 asl-coop:dev` and open `http://localhost:18080/dev` in two tabs. The keyless mode uses fallback words and placeholder images. This still requires real signing; there is no typed-letter mode.
+- Remaining manual checks: real-hand recognition and a two-player camera game, authenticated Muse requests, and deployment/HTTPS/CPU validation on Fly. The Vercel frontend remains the teammate's work.

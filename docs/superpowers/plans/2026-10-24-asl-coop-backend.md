@@ -46,7 +46,7 @@
 - Create: `.gitignore`, `pyproject.toml`, `.python-version`, `server/__init__.py`, `server/config.py`
 - Create (copied): `models/hand_landmarker.task`
 
-- [ ] **Step 1: Initialize git and the ignore file**
+- [x] **Step 1: Initialize git and the ignore file**
 
 ```bash
 git init -b backend-shit
@@ -66,7 +66,7 @@ __pycache__/
 Research ASL Models.html
 ```
 
-- [ ] **Step 2: Write `pyproject.toml` and `.python-version`**
+- [x] **Step 2: Write `pyproject.toml` and `.python-version`**
 
 `pyproject.toml`:
 
@@ -98,12 +98,12 @@ pythonpath = ["."]
 3.12
 ```
 
-- [ ] **Step 3: Install and check imports**
+- [x] **Step 3: Install and check imports**
 
 Run: `uv sync && uv run python -c "import fastapi, uvicorn, httpx, mediapipe, numpy, cv2; print('ok', mediapipe.__version__)"`
 Expected: last line `ok 1.1.1` (or a newer 1.x). Do not add `opencv-python` or `opencv-python-headless`; mediapipe already brings `opencv-contrib-python`, and two OpenCV wheels conflict.
 
-- [ ] **Step 4: Fetch the repo's model files**
+- [x] **Step 4: Fetch the repo's model files**
 
 ```bash
 git clone -q https://github.com/Gj-345/asl-hand-gesture-recognition.git .cache/asl-repo
@@ -115,7 +115,7 @@ ls -l models/hand_landmarker.task .cache/asl-repo/ml/models/best_model.pth
 
 Expected: `hand_landmarker.task` is about 7.8 MB and `best_model.pth` about 326 KB.
 
-- [ ] **Step 5: Write `server/__init__.py` (empty) and `server/config.py`**
+- [x] **Step 5: Write `server/__init__.py` (empty) and `server/config.py`**
 
 `server/config.py`:
 
@@ -151,7 +151,7 @@ class Settings:
 Run: `uv run python -c "from server.config import Settings, MODELS; print(Settings(api_key=None).time_limit, MODELS.name)"`
 Expected: `10.0 models`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add .gitignore pyproject.toml .python-version uv.lock server/__init__.py server/config.py models/hand_landmarker.task handoff.md docs/superpowers/plans/2026-10-24-asl-coop-backend.md
@@ -166,7 +166,7 @@ git commit -m "chore: scaffold uv project and add hand landmarker model"
 - Create: `scripts/export_weights.py`, `server/classifier.py`, `tests/test_classifier.py`
 - Create (generated): `models/classifier.npz`, `tests/fixtures/parity.npz`
 
-- [ ] **Step 1: Write the export script**
+- [x] **Step 1: Write the export script**
 
 `scripts/export_weights.py`:
 
@@ -235,7 +235,7 @@ if __name__ == "__main__":
     main(sys.argv[1])
 ```
 
-- [ ] **Step 2: Run the export**
+- [x] **Step 2: Run the export**
 
 Run:
 
@@ -245,7 +245,7 @@ uv run --no-project -p 3.12 --with torch --with numpy --index https://download.p
 
 Expected: `wrote models/classifier.npz and tests/fixtures/parity.npz` (the first run downloads CPU torch, about 200 MB).
 
-- [ ] **Step 3: Write the failing tests**
+- [x] **Step 3: Write the failing tests**
 
 `tests/test_classifier.py`:
 
@@ -285,12 +285,12 @@ def test_single_vector_gives_26_probabilities():
     assert abs(float(p.sum()) - 1.0) < 1e-5
 ```
 
-- [ ] **Step 4: Run the tests to see them fail**
+- [x] **Step 4: Run the tests to see them fail**
 
 Run: `uv run pytest tests/test_classifier.py -v`
 Expected: collection error, `ModuleNotFoundError: No module named 'server.classifier'`
 
-- [ ] **Step 5: Implement `server/classifier.py`**
+- [x] **Step 5: Implement `server/classifier.py`**
 
 ```python
 import numpy as np
@@ -325,12 +325,12 @@ class Classifier:
         return e / e.sum(axis=-1, keepdims=True)
 ```
 
-- [ ] **Step 6: Run the tests to see them pass**
+- [x] **Step 6: Run the tests to see them pass**
 
 Run: `uv run pytest tests/test_classifier.py -v`
 Expected: 4 passed
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add scripts/export_weights.py server/classifier.py tests/test_classifier.py models/classifier.npz tests/fixtures/parity.npz
@@ -344,7 +344,7 @@ git commit -m "feat: numpy classifier exported from the repo's torch model, with
 **Files:**
 - Create: `server/acceptance.py`, `tests/test_acceptance.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `tests/test_acceptance.py`:
 
@@ -403,12 +403,12 @@ def test_repeated_letter_needs_a_second_full_hold():
     assert h.update("O", onehot("O"), 1.3)[3] is True
 ```
 
-- [ ] **Step 2: Run the tests to see them fail**
+- [x] **Step 2: Run the tests to see them fail**
 
 Run: `uv run pytest tests/test_acceptance.py -v`
 Expected: collection error, `No module named 'server.acceptance'`
 
-- [ ] **Step 3: Implement `server/acceptance.py`**
+- [x] **Step 3: Implement `server/acceptance.py`**
 
 ```python
 import numpy as np
@@ -454,12 +454,12 @@ class HoldTracker:
         return guess, conf, 1.0, True
 ```
 
-- [ ] **Step 4: Run the tests to see them pass**
+- [x] **Step 4: Run the tests to see them pass**
 
 Run: `uv run pytest tests/test_acceptance.py -v`
 Expected: 6 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/acceptance.py tests/test_acceptance.py
@@ -473,7 +473,7 @@ git commit -m "feat: letter acceptance rule (0.8 confidence held 0.6 s, J/Z mask
 **Files:**
 - Create: `server/words.py`, `tests/test_words.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `tests/test_words.py`:
 
@@ -516,12 +516,12 @@ def test_fallback_pair_avoids_used_words():
     assert words.fallback_pair(used, random.Random(0)) == (words.ADJECTIVES[0], words.NOUNS[0])
 ```
 
-- [ ] **Step 2: Run the tests to see them fail**
+- [x] **Step 2: Run the tests to see them fail**
 
 Run: `uv run pytest tests/test_words.py -v`
 Expected: collection error, `cannot import name 'words'`
 
-- [ ] **Step 3: Implement `server/words.py`**
+- [x] **Step 3: Implement `server/words.py`**
 
 ```python
 import random
@@ -562,12 +562,12 @@ def fallback_pair(used: set[str], rng=random) -> tuple[str, str]:
     return rng.choice(adjectives), rng.choice(nouns)
 ```
 
-- [ ] **Step 4: Run the tests to see them pass**
+- [x] **Step 4: Run the tests to see them pass**
 
 Run: `uv run pytest tests/test_words.py -v`
 Expected: 13 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/words.py tests/test_words.py
@@ -581,7 +581,7 @@ git commit -m "feat: word validation and fallback word lists"
 **Files:**
 - Create: `server/recognizer.py`, `tests/test_recognizer.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `tests/test_recognizer.py`:
 
@@ -620,12 +620,12 @@ def test_oversized_frame_is_rejected(rec):
     assert rec.process(jpeg(1280, 720)) is None
 ```
 
-- [ ] **Step 2: Run the tests to see them fail**
+- [x] **Step 2: Run the tests to see them fail**
 
 Run: `uv run pytest tests/test_recognizer.py -v`
 Expected: collection error, `No module named 'server.recognizer'`
 
-- [ ] **Step 3: Implement `server/recognizer.py`**
+- [x] **Step 3: Implement `server/recognizer.py`**
 
 ```python
 """Camera frame -> MediaPipe hand landmarks -> letter probabilities, matching the repo's app.py."""
@@ -681,12 +681,12 @@ class Recognizer:
         self.detector.close()
 ```
 
-- [ ] **Step 4: Run the tests to see them pass**
+- [x] **Step 4: Run the tests to see them pass**
 
 Run: `uv run pytest tests/test_recognizer.py -v`
 Expected: 3 passed (MediaPipe log lines on stderr are normal).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/recognizer.py tests/test_recognizer.py
@@ -700,7 +700,7 @@ git commit -m "feat: MediaPipe recognizer matching the repo's live app"
 **Files:**
 - Create: `server/game.py`, `tests/test_game.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `tests/test_game.py`:
 
@@ -817,12 +817,12 @@ def test_ready_is_ignored_outside_the_lobby():
     assert room.set_ready(1, False, 4.0) == []
 ```
 
-- [ ] **Step 2: Run the tests to see them fail**
+- [x] **Step 2: Run the tests to see them fail**
 
 Run: `uv run pytest tests/test_game.py -v`
 Expected: collection error, `No module named 'server.game'`
 
-- [ ] **Step 3: Implement `server/game.py`**
+- [x] **Step 3: Implement `server/game.py`**
 
 ```python
 """Pure game engine for one room: events in, messages and effects out.
@@ -997,12 +997,12 @@ class Room:
         })
 ```
 
-- [ ] **Step 4: Run the tests to see them pass**
+- [x] **Step 4: Run the tests to see them pass**
 
 Run: `uv run pytest tests/test_game.py -v`
 Expected: 7 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/game.py tests/test_game.py
@@ -1017,7 +1017,7 @@ git commit -m "feat: game engine rooms, lobby, countdown and round start"
 - Modify: `server/game.py` (add methods, replace `tick`)
 - Modify: `tests/test_game.py` (append tests)
 
-- [ ] **Step 1: Append the failing tests to `tests/test_game.py`**
+- [x] **Step 1: Append the failing tests to `tests/test_game.py`**
 
 ```python
 def test_recognition_feedback_goes_to_the_signer_only():
@@ -1112,12 +1112,12 @@ def test_five_rounds_reach_500_then_game_over_and_play_again():
     assert not any(p.ready for p in room.players.values())
 ```
 
-- [ ] **Step 2: Run the tests to see the new ones fail**
+- [x] **Step 2: Run the tests to see the new ones fail**
 
 Run: `uv run pytest tests/test_game.py -v`
 Expected: the 8 new tests fail with `AttributeError: 'Room' object has no attribute 'on_recognition'` (or `on_image`); the 7 old tests pass.
 
-- [ ] **Step 3: Add the methods to `Room` in `server/game.py`**
+- [x] **Step 3: Add the methods to `Room` in `server/game.py`**
 
 Insert this block after `on_pair` (before the `# ---- clock ----` section):
 
@@ -1193,12 +1193,12 @@ Add this method in the `# ---- messages ----` section, after `_round_start`:
         return {"type": "game_over", "score": self.score, "gallery": list(self.gallery)}
 ```
 
-- [ ] **Step 4: Run the tests to see them pass**
+- [x] **Step 4: Run the tests to see them pass**
 
 Run: `uv run pytest tests/test_game.py -v`
 Expected: 15 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/game.py tests/test_game.py
@@ -1213,7 +1213,7 @@ git commit -m "feat: game engine signing, images, scoring and game over"
 - Modify: `server/game.py` (add methods, replace `tick`)
 - Modify: `tests/test_game.py` (append tests)
 
-- [ ] **Step 1: Append the failing tests to `tests/test_game.py`**
+- [x] **Step 1: Append the failing tests to `tests/test_game.py`**
 
 ```python
 def test_timeout_fails_the_round_and_starts_a_new_pair():
@@ -1272,12 +1272,12 @@ def test_reconnect_after_game_over_resends_the_gallery():
     assert sent(room.reconnect(1, 1.0), "game_over", to=1)
 ```
 
-- [ ] **Step 2: Run the tests to see the new ones fail**
+- [x] **Step 2: Run the tests to see the new ones fail**
 
 Run: `uv run pytest tests/test_game.py -v`
 Expected: the 5 new tests fail (`tick(13.0)` returns `[]`, or `AttributeError: ... 'disconnect'`); the 15 old tests pass.
 
-- [ ] **Step 3: Add the methods to `Room` in `server/game.py`**
+- [x] **Step 3: Add the methods to `Room` in `server/game.py`**
 
 Insert this block after `play_again`:
 
@@ -1342,12 +1342,12 @@ Add this method in the `# ---- transitions ----` section, after `_start_signing`
                 *self._start_countdown(now)]  # 0 points; the prefetched pair starts next (Q13)
 ```
 
-- [ ] **Step 4: Run all tests to see them pass**
+- [x] **Step 4: Run all tests to see them pass**
 
 Run: `uv run pytest -v`
 Expected: all pass (20 in `test_game.py`, plus the earlier suites).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/game.py tests/test_game.py
@@ -1361,7 +1361,7 @@ git commit -m "feat: game engine timeouts, disconnect pause and reconnect"
 **Files:**
 - Create: `server/muse.py`, `tests/test_muse.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `tests/test_muse.py`:
 
@@ -1435,12 +1435,12 @@ def test_placeholder_shows_the_phrase():
     assert "&lt;b&gt;" in muse.placeholder_svg("<b>").decode()
 ```
 
-- [ ] **Step 2: Run the tests to see them fail**
+- [x] **Step 2: Run the tests to see them fail**
 
 Run: `uv run pytest tests/test_muse.py -v`
 Expected: collection error, `cannot import name 'muse'`
 
-- [ ] **Step 3: Implement `server/muse.py`**
+- [x] **Step 3: Implement `server/muse.py`**
 
 ```python
 """Muse (Meta Model API) calls. Each returns None on failure so the caller falls back (Q7, Q19)."""
@@ -1522,12 +1522,12 @@ def placeholder_svg(phrase: str) -> bytes:
     ).encode()
 ```
 
-- [ ] **Step 4: Run the tests to see them pass**
+- [x] **Step 4: Run the tests to see them pass**
 
 Run: `uv run pytest tests/test_muse.py -v`
 Expected: 5 passed (logged tracebacks from the error tests are expected).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/muse.py tests/test_muse.py
@@ -1541,7 +1541,7 @@ git commit -m "feat: Muse word-pair and image client with placeholder image"
 **Files:**
 - Create: `server/app.py`, `server/main.py`, `tests/test_ws.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `tests/test_ws.py`:
 
@@ -1642,12 +1642,12 @@ def test_unknown_image_is_404():
         assert client.get("/images/QQQQ/1").status_code == 404
 ```
 
-- [ ] **Step 2: Run the tests to see them fail**
+- [x] **Step 2: Run the tests to see them fail**
 
 Run: `uv run pytest tests/test_ws.py -v`
 Expected: collection error, `No module named 'server.app'`
 
-- [ ] **Step 3: Implement `server/app.py`**
+- [x] **Step 3: Implement `server/app.py`**
 
 ```python
 """HTTP and WebSocket server around the pure game engine in server/game.py."""
@@ -1942,7 +1942,7 @@ def create_app(settings: Settings | None = None, make_recognizer=None) -> FastAP
     return app
 ```
 
-- [ ] **Step 4: Write `server/main.py`**
+- [x] **Step 4: Write `server/main.py`**
 
 ```python
 import logging
@@ -1953,17 +1953,17 @@ logging.basicConfig(level=logging.INFO)
 app = create_app()
 ```
 
-- [ ] **Step 5: Run the tests to see them pass**
+- [x] **Step 5: Run the tests to see them pass**
 
 Run: `uv run pytest tests/test_ws.py -v`
 Expected: 5 passed, in under 15 seconds.
 
-- [ ] **Step 6: Check the real app starts**
+- [x] **Step 6: Check the real app starts**
 
 Run: `timeout 20 uv run uvicorn server.main:app --port 8765 & sleep 8; curl -s localhost:8765/healthz; wait`
 Expected: `{"ok":true,"rooms":0}` printed before the timeout stops the server.
 
-- [ ] **Step 7: Run the full suite and commit**
+- [x] **Step 7: Run the full suite and commit**
 
 Run: `uv run pytest -q`
 Expected: all pass.
@@ -1980,7 +1980,7 @@ git commit -m "feat: FastAPI WebSocket server, room registry and image endpoint"
 **Files:**
 - Create: `docs/protocol.md`
 
-- [ ] **Step 1: Write `docs/protocol.md`**
+- [x] **Step 1: Write `docs/protocol.md`**
 
 ````markdown
 # ASL Co-op WebSocket Protocol
@@ -2136,12 +2136,12 @@ MODEL_API_KEY=... uv run uvicorn server.main:app --port 8000
 Browsers allow the camera only on HTTPS or `localhost`. If the backend runs on a remote machine, tunnel it with `ssh -L 8000:localhost:8000 <server>` and open `http://localhost:8000/dev`.
 ````
 
-- [ ] **Step 2: Check the doc against the code**
+- [x] **Step 2: Check the doc against the code**
 
 Run: `grep -o '"type": "[a-z_]*"' server/game.py server/app.py | sort -u`
 Expected: every message type the code sends (`countdown`, `error`, `game_over`, `image_pending`, `image_ready`, `progress`, `recognition`, `room_closed`, `room_joined`, `room_state`, `round_complete`, `round_failed`, `round_start`) appears in `docs/protocol.md`. Fix the doc if any field differs from the code. `error` is built by `error_msg()` in `server/app.py`, so grep may show it as `"type": "error"` there.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/protocol.md
@@ -2155,7 +2155,7 @@ git commit -m "docs: WebSocket protocol for the frontend"
 **Files:**
 - Create: `server/static/dev.html`
 
-- [ ] **Step 1: Write `server/static/dev.html`**
+- [x] **Step 1: Write `server/static/dev.html`**
 
 ```html
 <!doctype html>
@@ -2317,17 +2317,17 @@ $("again").onclick = () => { $("gallery").replaceChildren(); send({ type: "play_
 </html>
 ```
 
-- [ ] **Step 2: Check the script parses, if node is available**
+- [x] **Step 2: Check the script parses, if node is available**
 
 Run: `command -v node && sed -n '/<script>/,/<\/script>/p' server/static/dev.html | sed '1d;$d' > /tmp/devcheck.js && node --check /tmp/devcheck.js && echo syntax-ok`
 Expected: `syntax-ok`. If node is missing, say so in the report and skip this step.
 
-- [ ] **Step 3: Check the server serves it**
+- [x] **Step 3: Check the server serves it**
 
 Run: `timeout 20 uv run uvicorn server.main:app --port 8765 & sleep 8; curl -s localhost:8765/dev | grep -c "ASL Co-op dev page"; wait`
 Expected: `1`
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add server/static/dev.html
@@ -2341,7 +2341,7 @@ git commit -m "feat: minimal /dev camera test page"
 **Files:**
 - Create: `Dockerfile`, `.dockerignore`, `fly.toml`
 
-- [ ] **Step 1: Write `Dockerfile`**
+- [x] **Step 1: Write `Dockerfile`**
 
 ```dockerfile
 FROM python:3.12-slim
@@ -2363,7 +2363,7 @@ EXPOSE 8080
 CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8080", "--proxy-headers", "--forwarded-allow-ips", "*"]
 ```
 
-- [ ] **Step 2: Write `.dockerignore`**
+- [x] **Step 2: Write `.dockerignore`**
 
 ```
 .git
@@ -2379,7 +2379,7 @@ Research ASL Models.html
 .env
 ```
 
-- [ ] **Step 3: Write `fly.toml`**
+- [x] **Step 3: Write `fly.toml`**
 
 ```toml
 # One machine, always on: rooms live in memory (Q2, Q21)
@@ -2405,12 +2405,12 @@ primary_region = "dfw"
   memory = "2gb"
 ```
 
-- [ ] **Step 4: Build the image**
+- [x] **Step 4: Build the image**
 
 Run: `docker build -t asl-coop:dev .`
 Expected: the build finishes with no errors.
 
-- [ ] **Step 5: Run the container and check health and recognition**
+- [x] **Step 5: Run the container and check health and recognition**
 
 ```bash
 docker run -d --rm --name asl-coop-test -p 18080:8080 asl-coop:dev
@@ -2431,7 +2431,7 @@ docker rm -f asl-coop-test
 
 Expected: `{"ok":true,"rooms":0}`, then `200`, then `no-hand Recognition(probs=None, landmarks=None)`. If the import fails with a missing `.so` file, add that library's Debian package to the `apt-get install` line and rebuild.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add Dockerfile .dockerignore fly.toml
