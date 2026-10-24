@@ -36,6 +36,7 @@ class Conn:
     outbox: asyncio.Queue = field(default_factory=asyncio.Queue)
     frame: tuple[bytes, int] | None = None
     frame_ready: asyncio.Event = field(default_factory=asyncio.Event)
+    frame_epoch: int = 0
     worker: asyncio.Task | None = None
     sender: asyncio.Task | None = None
 
@@ -182,10 +183,12 @@ class Hub:
                 if pending is None or pending[1] != live.epoch or not self.can_recognize(live, conn):
                     continue
                 jpeg, epoch = pending
+                frame_epoch = conn.frame_epoch
                 started = time.monotonic()
                 result = await asyncio.shield(loop.run_in_executor(pool, rec.process, jpeg))
-                if epoch == live.epoch and self.can_recognize(live, conn):
+                if epoch == live.epoch and frame_epoch == conn.frame_epoch and self.can_recognize(live, conn):
                     if result is None:
+                        live.room.players[conn.slot].hold.reset()
                         conn.outbox.put_nowait(error_msg("bad_frame", "Frames must be JPEG images of at most 640x480."))
                     else:
                         self.dispatch(live, live.room.on_recognition(conn.slot, result.probs, result.landmarks, time.monotonic()))
@@ -245,6 +248,10 @@ class Hub:
         if not self.can_recognize(live, conn):
             return
         if len(data) > self.s.max_frame_bytes:
+            live.room.players[conn.slot].hold.reset()
+            conn.frame_epoch += 1  # Invalidate CPU work that predates this rejected frame.
+            conn.frame = None
+            conn.frame_ready.clear()
             conn.outbox.put_nowait(error_msg("frame_too_large", f"Frames must be under {self.s.max_frame_bytes} bytes."))
             return
         conn.frame = (data, live.epoch)

@@ -250,6 +250,75 @@ def test_frames_are_ignored_while_paused_or_done_and_large_frames_are_rejected()
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("rejection", ["bad_frame", "frame_too_large"])
+def test_rejected_image_restarts_only_the_affected_players_hold(rejection):
+    class RejectingRecognizer(LetterStub):
+        def process(self, jpeg):
+            return None if jpeg == b"invalid" else super().process(jpeg)
+
+    async def scenario():
+        hub = Hub(replace(FAST, hold_seconds=0.2), RejectingRecognizer)
+        live, conn = signing(hub)
+        player, other = live.room.players[1], live.room.players[2]
+        other.hold.since = time.monotonic()
+        other_since = other.hold.since
+        worker = asyncio.create_task(hub.recognize(live, conn))
+        try:
+            hub.on_frame(live, conn, b"R")
+            first = await asyncio.wait_for(conn.outbox.get(), 2)
+            assert first["type"] == "recognition" and not first["accepted"]
+            started = player.hold.since
+            data = b"invalid" if rejection == "bad_frame" else b"x" * (FAST.max_frame_bytes + 1)
+            hub.on_frame(live, conn, data)
+            error = await asyncio.wait_for(conn.outbox.get(), 2)
+            assert error["type"] == "error" and error["code"] == rejection
+            await eventually(lambda: time.monotonic() - started > 0.21)
+            hub.on_frame(live, conn, b"R")
+            fresh = await asyncio.wait_for(conn.outbox.get(), 2)
+            assert fresh["type"] == "recognition"
+            assert fresh["accepted"] is False and fresh["hold"] == 0.0
+            assert player.index == 0 and player.hold.since > started
+            assert other.hold.since == other_since
+        finally:
+            worker.cancel()
+            await asyncio.gather(worker, return_exceptions=True)
+            await hub.shutdown()
+    asyncio.run(scenario())
+
+
+def test_oversized_image_discards_in_flight_and_queued_frames_before_the_reset():
+    async def scenario():
+        rec = GatedRecognizer()
+        rec.release.set()
+        hub = Hub(replace(FAST, hold_seconds=0.2), lambda: rec)
+        live, conn = signing(hub)
+        player = live.room.players[1]
+        worker = asyncio.create_task(hub.recognize(live, conn))
+        try:
+            hub.on_frame(live, conn, b"R")
+            assert (await asyncio.wait_for(conn.outbox.get(), 2))["accepted"] is False
+            rec.started.clear()
+            rec.release.clear()
+            hub.on_frame(live, conn, b"R")
+            await eventually(rec.started.is_set)
+            hub.on_frame(live, conn, b"R")  # Queued before the rejected bytes.
+            hub.on_frame(live, conn, b"x" * (FAST.max_frame_bytes + 1))
+            assert conn.outbox.get_nowait()["code"] == "frame_too_large"
+            rec.release.set()
+            await asyncio.sleep(0.25)  # Let both old CPU work and the throttle finish.
+            assert conn.outbox.empty(), "pre-rejection frames must not restart or accept a hold"
+            assert player.hold.since is None and player.index == 0
+            hub.on_frame(live, conn, b"R")
+            fresh = await asyncio.wait_for(conn.outbox.get(), 2)
+            assert fresh["accepted"] is False and fresh["hold"] == 0.0
+        finally:
+            rec.release.set()
+            worker.cancel()
+            await asyncio.gather(worker, return_exceptions=True)
+            await hub.shutdown()
+    asyncio.run(scenario())
+
+
 def test_expired_room_cannot_be_revived_between_ticks():
     async def scenario():
         hub = Hub(replace(FAST, reconnect_grace=0), LetterStub)
