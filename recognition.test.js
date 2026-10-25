@@ -8,7 +8,7 @@ function loadHelper(name, context) {
   const html = fs.readFileSync('index.html', 'utf8');
   const source = html.match(new RegExp(`      (?:async )?function ${name}\\([^]*?\\n      }`));
   assert.ok(source, `${name} must exist`);
-  vm.createContext(context);
+  if (!vm.isContext(context)) vm.createContext(context);
   vm.runInContext(source[0], context);
   return context[name];
 }
@@ -29,21 +29,18 @@ test('hold takes 1500 ms and resets on changed signs, missing hands, and frame g
   assert.equal(context.holdProgress.value, 0);
 });
 
-test('automatic submission validates turns and letters and prevents duplicate sends', () => {
+test('automatic submission validates the local word and prevents duplicate sends', () => {
   const sent = [];
-  const context = { roomState: { status: 'playing', currentPlayer: 0 }, playerSlot: 0,
+  const context = { roomState: { status: 'playing', words: ['CAT', 'DOG'], letters: ['', ''] }, playerSlot: 0,
     debugPreview: false, submittingLetter: false, socket: {readyState: 1, send: data => sent.push(JSON.parse(data))},
     WebSocket: {OPEN: 1}, select: {value: 'B'}, target: 'CAT', accepted: '', notice: {},
     predictionSource: 'camera', pendingSource: '', currentPrediction: 'C', waitingForRelease: false,
     livePrediction: {}, predictionDetail: {}, crypto: {getRandomValues: array => require('node:crypto').randomFillSync(array)}, Uint8Array, render() {} };
+  context.canSign = loadHelper('canSign', context);
   const submit = loadHelper('submitLetter', context);
   submit();
   assert.equal(sent.length, 0);
   context.select.value = 'C';
-  context.roomState.currentPlayer = 1;
-  submit();
-  assert.equal(sent.length, 0);
-  context.roomState.currentPlayer = 0;
   submit();
   assert.equal(sent.length, 1);
   assert.equal(sent[0].letter, 'C');
@@ -59,25 +56,28 @@ test('automatic submission validates turns and letters and prevents duplicate se
   assert.equal(context.submittingLetter, false);
   assert.equal(context.select.value, 'C');
   assert.match(context.notice.textContent, /try again/i);
+  context.roomState.letters[0] = 'CAT';
+  submit();
+  assert.equal(sent.length, 1);
 });
 
 
 test('manual letters submit with the camera enabled while the keypad is open', () => {
   let submissions = 0;
   const context = { debugPreview: false, submittingLetter: false, cameraStream: {},
-    roomState: {status: 'playing', currentPlayer: 0}, playerSlot: 0,
+    roomState: {status: 'playing', words: ['CAT', 'DOG'], letters: ['', '']}, playerSlot: 0,
     manualInput: {open: true}, select: {value: ''}, currentPrediction: '', predictionSource: '',
     livePrediction: {}, predictionDetail: {}, notice: {},
     submitLetter() { submissions += 1; } };
+  context.canSign = loadHelper('canSign', context);
   const enter = loadHelper('enterManualLetter', context);
   enter('C');
   assert.equal(submissions, 1);
   assert.equal(context.select.value, 'C');
   assert.equal(context.predictionSource, 'manual');
-  context.roomState.currentPlayer = 1;
+  context.roomState.letters[0] = 'CAT';
   enter('A');
   assert.equal(submissions, 1);
-  context.roomState.currentPlayer = 0;
   context.manualInput.open = false;
   enter('A');
   assert.equal(submissions, 1);
@@ -102,44 +102,37 @@ test('copy uses the room code and offers selectable text when clipboard access f
   assert.match(context.copyStatus.textContent, /copy.*manually/i);
 });
 
-test('turn warning and manual keypad follow the local player even with a camera on', () => {
-  const node = () => ({ style: {}, classList: {toggle() {}}, append() {}, replaceChildren() {}, setAttribute() {} });
+test('each player sees their own word and cannot sign after finishing it', () => {
+  const node = () => ({ style: {}, classList: {toggle() {}}, append() {}, replaceChildren() {}, setAttribute() {},
+    getAttribute() { return null; }, removeAttribute() {}, focus() {} });
   const elements = new Map();
   const get = id => { if (!elements.has(id)) elements.set(id, node()); return elements.get(id); };
   const context = {
     document: {querySelector: get, createElement: node},
-    roomState: {status: 'playing', code: 'ABC234', currentPlayer: 1, letters: '', score: 0,
-      secondsRemaining: 120, players: [{name: 'Alex', connected: true}, {name: 'Sam', connected: true}]},
+    roomState: {status: 'playing', code: 'ABC234', words: ['CAT', 'DOG'], letters: ['', ''], score: 0,
+      targetScore: 500, roundDuration: 120, wordsCompleted: 0, secondsRemaining: 120, pendingRematch: null,
+      picture: null, pictureJob: null, players: [{name: 'Alex', connected: true}, {name: 'Sam', connected: true}]},
     playerSlot: 0, debugPreview: false, submittingLetter: false, cameraStream: {},
     socket: {readyState: 1}, WebSocket: {OPEN: 1}, peerConnection: null, videoShareStream: null,
-    target: 'CAT', accepted: '', lastCompletedWord: '', debugKeypad: {children: [node()]},
+    target: 'CAT', accepted: '', debugKeypad: {children: [node()]},
     updateSignHold() {}, renderResults() {},
   };
+  context.canSign = loadHelper('canSign', context);
+  context.buildSlots = loadHelper('buildSlots', context);
   for (const key of ['menuScreen', 'waitingScreen', 'gameScreen', 'localMediaPanel', 'remoteVideoPreview',
     'manualStatus', 'select', 'resetButton', 'cameraStart', 'videoShareStart']) context[key] = node();
   const render = loadHelper('updateRoomUI', context);
   render();
   assert.equal(get('#turn-warning').hidden, false);
-  assert.match(get('#turn-warning-copy').textContent, /Sam is signing/);
-  assert.equal(context.debugKeypad.children[0].disabled, true);
-  context.roomState.currentPlayer = 0;
+  assert.match(get('#turn-warning-copy').textContent, /Sign C/);
+  assert.equal(get('#partner-label').textContent, "Sam's word: DOG");
+  assert.equal(context.debugKeypad.children[0].disabled, false);
+  assert.match(context.manualStatus.textContent, /click C/i);
+  context.roomState.letters[0] = 'CAT';
   render();
   assert.equal(get('#turn-warning').hidden, false);
-  assert.equal(get('#turn-warning-title').textContent, 'YOUR TURN');
-  assert.equal(context.debugKeypad.children[0].disabled, false);
-  assert.match(context.manualStatus.textContent, /click C/);
-  context.target = 'DOG';
-  context.lastCompletedWord = 'CAT';
-  context.roomState.currentPlayer = 1;
-  context.roomState.score = 100;
-  render({type: 'letter:accepted', completedWord: 'CAT'});
-  assert.equal(get('#turn-warning').hidden, false);
-  assert.equal(get('#turn-warning-title').textContent, 'WAIT FOR YOUR TURN');
-  assert.match(get('#turn-warning-copy').textContent, /Sam is signing/);
-  context.roomState.status = 'complete';
-  render({type: 'game:completed'});
-  assert.equal(get('#turn-warning').hidden, false);
-  assert.equal(get('#turn-warning-title').textContent, 'ROUND COMPLETE');
+  assert.match(get('#turn-warning-copy').textContent, /finished CAT.*Sam/);
+  assert.equal(context.debugKeypad.children[0].disabled, true);
 });
 
 test('results keep player cameras visible after timeout and show the final score', () => {
@@ -147,7 +140,9 @@ test('results keep player cameras visible after timeout and show the final score
   const get = id => { if (!elements.has(id)) elements.set(id, {focus() {}}); return elements.get(id); };
   const context = {document: {querySelector: get}, resultsScreen: {hidden: true}, gameScreen: {hidden: false, classList: {toggle() {}}},
     socket: {readyState: 1}, WebSocket: {OPEN: 1, CONNECTING: 0},
-    roomState: {status: 'complete', completedReason: 'time', score: 300, wordsCompleted: 3, targetScore: 750}};
+    playerSlot: 0,
+    roomState: {status: 'complete', completedReason: 'time', score: 300, wordsCompleted: 3, targetScore: 750,
+      roundDuration: 120, pendingRematch: null, players: [{name: 'Alex', rematchReady: false}, {name: 'Sam', rematchReady: false}]}};
   const show = loadHelper('renderResults', context);
   show();
   assert.equal(context.resultsScreen.hidden, false);
@@ -181,15 +176,15 @@ test('reconnect reuses the room and player token and guards repeated clicks', ()
 });
 
 
-test('round completion keeps the local camera and shared video running', () => {
+test('game completion keeps the local camera and shared video running', () => {
   let stops = 0;
-  const context = {submittingLetter: true, roomState: null, target: '', accepted: '', currentPlayer: 0,
+  const context = {submittingLetter: true, roomState: null, target: '', accepted: '', playerSlot: 0,
     cameraStream: {}, videoShareStream: {}, peerConnection: {},
     stopCamera() { stops += 1; }, stopVideoShare() { stops += 1; },
     showLobbyError() {}, updateRoomUI() {}, document: {querySelector: () => ({})}};
   const handle = loadHelper('handleSocketMessage', context);
   handle({data: JSON.stringify({type: 'game:completed', room: {
-    status: 'complete', completedReason: 'time', target: 'CAT', letters: '', currentPlayer: 0,
+    status: 'complete', completedReason: 'time', words: ['CAT', 'DOG'], letters: ['', ''], targetScore: 500, roundDuration: 120,
   }})});
   assert.equal(stops, 0);
   assert.equal(context.roomState.status, 'complete');

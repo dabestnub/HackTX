@@ -86,8 +86,9 @@
     .game-over.visible { display: block; }
     .game-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-areas: "stage rail"; gap: 32px; align-items: start; }
     .round-ended .game-workspace { display: block; }
-    .round-ended .game-overview, .round-ended .controls-card, .round-ended .game-over,
+    .round-ended .score-card, .round-ended .word-card, .round-ended .controls-card, .round-ended .game-over,
     .round-ended .hold-meter, .round-ended .prediction-readout, .round-ended .turn-warning { display: none; }
+    .round-ended .game-overview { border: 0; padding: 0; }
     .game-stage { grid-area: stage; min-width: 0; }
     .game-overview { grid-area: rail; display: flex; flex-direction: column; border-left: 1px solid var(--line); padding-left: 28px; gap: 28px; }
     .word-card { order: -1; padding: 26px; background: var(--yellow); }
@@ -145,7 +146,6 @@
     .image-card { border-top: 1px solid var(--line); padding-top: 22px; }
     .image-card h2 { font-size: .85rem; }
     .image-placeholder { padding: 20px 0 12px; color: var(--muted); font-size: .8rem; }
-    .cat-art { display: none; }
     .image-caption { font-size: .68rem; color: var(--muted); }
     @media (max-width: 1050px) {
       .page { width: calc(100% - 40px); }
@@ -232,12 +232,12 @@
     <section class="lobby" id="menu-screen" aria-labelledby="menu-title">
       <article class="card lobby-intro">
         <p class="eyebrow">The fingerspelling game</p>
-        <h2 class="lobby-title" id="menu-title">Your hands.<br>Their turn.<br><em>One word.</em></h2>
-        <p class="lobby-copy">Pull up a chair. Invite a friend. Take turns signing letters and reach your points target before the clock runs out. Longer words earn more: 25 points per letter.</p>
+        <h2 class="lobby-title" id="menu-title">Your hands.<br>Your word.<br><em>One picture.</em></h2>
+        <p class="lobby-copy">Pull up a chair. Invite a friend. Sign separate words together and reach your points target before the clock runs out.</p>
         <div class="step-pills" aria-label="How to play">
           <span class="step-pill">1 · Make a room</span>
           <span class="step-pill">2 · Invite a friend</span>
-          <span class="step-pill">3 · Take turns</span>
+          <span class="step-pill">3 · Spell together</span>
         </div>
       </article>
       <article class="card lobby-panel">
@@ -314,27 +314,29 @@
       </article>
 
       <article class="card word-card">
-        <h2>Spell the word</h2>
-        <p class="target-label">Your shared target</p>
+        <h2>Spell your word</h2>
+        <p class="target-label">Your word</p>
         <strong class="target-word" id="target-word">CAT</strong>
         <div class="letter-slots" id="letters" aria-label="CAT, no letters confirmed yet">
           <span class="letter" data-index="0">?</span>
           <span class="letter" data-index="1">?</span>
           <span class="letter" data-index="2">?</span>
         </div>
-        <p class="word-instruction">Take turns signing each letter together.</p>
-        <div class="turn-row"><span id="turn-copy">Waiting for the room to start</span><span class="turn-arrow" aria-hidden="true">→</span><span>take turns</span></div>
+        <p class="word-instruction">Sign your word while your partner signs theirs.</p>
+        <div class="turn-row"><span id="turn-copy">Waiting for the room to start</span></div>
+        <p class="target-label" id="partner-label">Partner’s word</p>
+        <div class="letter-slots" id="partner-letters" aria-label="Partner's word progress"></div>
       </article>
 
     <article class="card image-card">
       <h2>Our shared picture</h2>
       <div class="image-placeholder" id="image">
-        <div>
-          <div class="cat-art" aria-hidden="true">✨ 🐈 ✨</div>
-          <div id="image-copy">A picture will appear after the word.</div>
+        <img id="picture" alt="" hidden style="max-width:100%;max-height:100%;border-radius:6px">
+        <div id="image-text" role="status" aria-live="polite">
+          <div id="image-copy">Finish both words to make a picture.</div>
         </div>
       </div>
-      <p class="image-caption" id="image-caption">Illustration only · no image service connected</p>
+      <p class="image-caption" id="image-caption"></p>
     </article>
 
     </section>
@@ -387,7 +389,7 @@
 
     <section class="card controls-card" aria-labelledby="controls-title">
       <h2 id="controls-title">Hold to register</h2>
-      <p class="muted">Hold the expected sign steady for 1.5 seconds to register it automatically, then lower your hand before the next letter. The server checks your turn and letter. Manual input is for testing.</p>
+      <p class="muted">Hold the expected sign steady for 1.5 seconds to register it automatically, then lower your hand before the next letter. The server checks your word and letter. Manual input is for testing.</p>
       <div class="controls">
         <label class="field" for="prediction" hidden>Detected letter
           <select id="prediction" disabled>
@@ -425,14 +427,13 @@
     (() => {
       let target = "CAT";
       let accepted = "";
-      let currentPlayer = 0;
       let roomState = null;
       let playerSlot = null;
       let socket = null;
       let playerToken = null;
       let debugPreview = false;
+      let roomRequestPending = false;
       let pendingSource = "";
-      let lastCompletedWord = "";
       let leavingRoom = false;
       const holdDuration = 1500;
       const releaseFrameThreshold = 8;
@@ -555,6 +556,7 @@
       function returnToMenu() {
         if (cameraStream) stopCamera();
         stopVideoShare();
+        setRoomRequestPending(false);
         const code = roomState?.code;
         if (code && !debugPreview) sessionStorage.removeItem(`signsync:${code}:token`);
         if (!debugPreview && socket?.readyState === WebSocket.OPEN) {
@@ -623,9 +625,8 @@
             { name: "Player 1", connected: true, videoSharing: false },
             { name: "Player 2", connected: true, videoSharing: false },
           ],
-          currentPlayer: 0,
-          target: "CAT",
-          letters: "",
+          words: ["CAT", "DOG"],
+          letters: ["", ""],
           score: 0,
           targetScore: 500,
           roundDuration: 120,
@@ -634,9 +635,7 @@
           completedReason: null,
         };
         accepted = "";
-        currentPlayer = 0;
-        target = roomState.target;
-        lastCompletedWord = "";
+        target = roomState.words[playerSlot];
         menuScreen.hidden = true;
         waitingScreen.hidden = true;
         gameScreen.hidden = false;
@@ -650,8 +649,19 @@
         lobbyError.textContent = message;
       }
 
+      function setRoomRequestPending(pending) {
+        roomRequestPending = pending;
+        document.querySelector("#create-room").disabled = pending;
+        document.querySelector("#join-room").disabled = pending;
+      }
+
       function connectAndSend(payload) {
+        if (payload.type === "room:create" || payload.type === "room:join") {
+          if (roomRequestPending) return;
+          setRoomRequestPending(true);
+        }
         if (location.protocol === "file:" || !location.host) {
+          setRoomRequestPending(false);
           showLobbyError("Open SignSync from its server. Run npm start in the project folder, then visit http://127.0.0.1:8000.");
           return;
         }
@@ -667,6 +677,7 @@
         try {
           socket = new WebSocket(`${scheme}//${location.host}`);
         } catch {
+          setRoomRequestPending(false);
           reconnectButton.disabled = false;
           reconnectStatus.textContent = "Could not connect. Check your network and try Reconnect again.";
           showLobbyError("Could not open a connection to the SignSync server. Run npm start in the project folder, then visit http://127.0.0.1:8000.");
@@ -683,6 +694,7 @@
         });
         socket.addEventListener("close", () => {
           if (socket !== connection) return;
+          setRoomRequestPending(false);
           submittingLetter = false;
           document.querySelector("#game-connection").textContent = "Disconnected";
           stopVideoShare(false);
@@ -872,8 +884,9 @@
           showLobbyError("The game server sent an unreadable message.");
           return;
         }
-        if (["error", "letter:accepted", "game:completed", "room:joined"].includes(message.type)) submittingLetter = false;
+        if (["error", "round:completed", "game:completed", "room:joined"].includes(message.type) || (message.type === "letter:accepted" && message.slot === playerSlot)) submittingLetter = false;
         if (message.type === "error") {
+          if (!roomState || !reconnectPanel.hidden) setRoomRequestPending(false);
           document.querySelector("#results-status").textContent = message.message || "Unable to start another round.";
           if (!reconnectPanel.hidden) {
             reconnectButton.disabled = false;
@@ -897,9 +910,6 @@
           url.searchParams.set("room", message.room.code);
           history.replaceState(null, "", url);
         }
-        if (message.type === "letter:accepted" && message.completedWord) {
-          lastCompletedWord = message.completedWord;
-        }
         if (message.type === "video:peer-ready") {
           setVideoShareStatus("Your friend enabled video. Connecting directly…");
           maybeCreateOffer();
@@ -911,7 +921,6 @@
         }
         if (message.room) {
           if (roomState?.status === "complete" && message.room.status !== "complete") {
-            lastCompletedWord = "";
             submittingLetter = false;
             select.value = "";
             currentPrediction = "";
@@ -921,17 +930,16 @@
             manualInput.open = false;
           }
           roomState = { ...message.room, targetScore: message.room.targetScore ?? 500, roundDuration: message.room.roundDuration ?? 120 };
-          target = roomState.target;
-          accepted = roomState.letters;
-          currentPlayer = roomState.currentPlayer;
+          target = roomState.words[playerSlot] || "";
+          accepted = roomState.letters[playerSlot] || "";
           updateRoomUI(message);
         }
         if (message.type === "letter:accepted") {
-          const localLetter = message.room.players[playerSlot]?.name || "A player";
-          const completion = message.completedWord
-            ? ` Together you completed ${message.completedWord}! ${message.completedWord.length * 25} points added.`
-            : "";
-          document.querySelector("#notice").textContent = `${localLetter} confirmed ${message.accepted}.${completion}`;
+          const playerName = message.room.players[message.slot]?.name || "A player";
+          const completion = message.completedWord ? ` ${playerName} finished ${message.completedWord}.` : "";
+          document.querySelector("#notice").textContent = `${playerName} signed ${message.accepted}.${completion}`;
+        } else if (message.type === "round:completed") {
+          document.querySelector("#notice").textContent = `Both players finished ${message.completedWords.join(" + ")}. Making a picture…`;
         } else if (message.type === "game:started") {
           document.querySelector("#notice").textContent = "Both players are ready. The round is on!";
         } else if (message.type === "game:completed") {
@@ -984,6 +992,11 @@
       function updateRoomUI(message = {}) {
         if (!roomState) return;
         const joined = roomState.players[playerSlot];
+        const otherPlayer = roomState.players[1 - playerSlot];
+        const myWord = roomState.words[playerSlot];
+        const myLetters = roomState.letters[playerSlot];
+        const partnerWord = roomState.words[1 - playerSlot];
+        const partnerLetters = roomState.letters[1 - playerSlot];
         const waiting = roomState.status === "waiting";
         menuScreen.hidden = true;
         waitingScreen.hidden = !waiting;
@@ -1026,7 +1039,6 @@
         const remotePlayerPanel = document.querySelector(playerSlot === 0 ? "#player-two" : "#player-one");
         if (localMediaPanel.parentElement !== localPlayerPanel) localPlayerPanel.append(localMediaPanel);
         if (remoteVideoPreview.parentElement !== remotePlayerPanel) remotePlayerPanel.append(remoteVideoPreview);
-        const otherPlayer = roomState.players[1 - playerSlot];
         if (!otherPlayer?.videoSharing && peerConnection) {
           stopVideoShare(false);
           setVideoShareStatus(otherPlayer?.connected
@@ -1048,49 +1060,68 @@
         document.querySelector(".progress").setAttribute("aria-label", `Progress toward ${roomState.targetScore} points`);
         document.querySelector(".progress").setAttribute("aria-valuenow", String(Math.min(roomState.score, roomState.targetScore)));
         document.querySelector("#progress").style.width = `${Math.min(100, roomState.score / roomState.targetScore * 100)}%`;
-        document.querySelector("#target-word").textContent = target;
-        const slots = [...target].map((letter, index) => {
-          const slot = document.createElement("span");
-          const confirmed = roomState.letters[index];
-          slot.className = `letter${confirmed ? " filled" : ""}`;
-          slot.textContent = confirmed || "?";
-          slot.setAttribute("aria-label", confirmed ? `Confirmed ${confirmed}` : `Letter ${index + 1}`);
-          return slot;
-        });
-        document.querySelector("#letters").replaceChildren(...slots);
-        document.querySelector("#letters").setAttribute("aria-label", `${target}, ${roomState.letters ? `confirmed letters ${[...roomState.letters].join(", ")}` : "no letters confirmed yet"}`);
+        document.querySelector("#target-word").textContent = myWord;
+        document.querySelector("#letters").replaceChildren(...buildSlots(myWord, myLetters));
+        document.querySelector("#letters").setAttribute("aria-label", `${myWord}, ${myLetters.length} of ${myWord.length} letters confirmed`);
+        document.querySelector("#partner-label").textContent = `${otherPlayer?.name || "Partner"}'s word: ${partnerWord}`;
+        document.querySelector("#partner-letters").replaceChildren(...buildSlots(partnerWord, partnerLetters));
+        document.querySelector("#partner-letters").setAttribute("aria-label", `${otherPlayer?.name || "Partner"}'s word, ${partnerLetters.length} of ${partnerWord.length} letters confirmed`);
         const complete = roomState.status === "complete";
-        const isMyTurn = roomState.status === "playing" && playerSlot === roomState.currentPlayer;
+        const isMyTurn = canSign();
+        const myWordDone = roomState.status === "playing" && myLetters === myWord;
         document.querySelector("#turn-warning").hidden = false;
         document.querySelector("#turn-warning").classList.toggle("ready", isMyTurn || complete);
         document.querySelector("#turn-warning-copy").textContent = complete
           ? "This round has ended. Choose Play again above to start another round."
           : isMyTurn ? `Sign ${target[accepted.length]} and hold for 1.5 seconds, or use manual input.`
+          : myWordDone ? `You've finished ${myWord}. Waiting for ${otherPlayer?.name || "your partner"} to finish their word.`
           : roomState.status === "ready" ? "Enable ASL recognition and share live video. The timer starts when both players are ready."
           : roomState.status === "waiting" ? "Waiting for both players to connect."
-          : `${roomState.players[roomState.currentPlayer]?.name || "Your partner"} is signing. Your signs and manual letters won't register until it's your turn.`;
+          : "Your partner is signing their word.";
         manualStatus.textContent = debugPreview ? "Preview only — create or join a room to enter letters."
           : complete ? "Round complete — choose Play again to start another round."
           : roomState.status === "ready" ? "The round starts when both players enable ASL recognition and share live video."
-          : !isMyTurn ? "Wait for your turn — your partner must enter the next letter."
+          : roomState.status === "waiting" ? "Waiting for both players to connect."
+          : myWordDone ? `Waiting for ${otherPlayer?.name || "your partner"} to finish their word.`
           : submittingLetter ? "Sending your letter…"
-          : `Your turn — click ${target[accepted.length]}. Camera recognition is paused while this panel is open.`;
+          : `Click ${target[accepted.length]}. Camera recognition is paused while this panel is open.`;
         if (!isMyTurn) updateSignHold("", 0);
-        document.querySelector("#player-one").classList.toggle("active", roomState.currentPlayer === 0 && !complete);
-        document.querySelector("#player-two").classList.toggle("active", roomState.currentPlayer === 1 && !complete);
+        document.querySelector("#player-one").classList.toggle("active", roomState.status === "playing" && roomState.letters[0] !== roomState.words[0]);
+        document.querySelector("#player-two").classList.toggle("active", roomState.status === "playing" && roomState.letters[1] !== roomState.words[1]);
         document.querySelector("#turn-copy").textContent = complete
           ? "Round complete!"
           : roomState.status === "waiting"
             ? "Waiting for both players"
             : roomState.status === "ready"
               ? "Enable ASL recognition and share live video to start"
-            : `${roomState.players[roomState.currentPlayer]?.name || "Player"} signs letter ${roomState.letters.length + 1}`;
-        document.querySelector("#image-copy").textContent = lastCompletedWord
-          ? `${lastCompletedWord} complete!`
-          : "Complete a word to reveal it.";
-        document.querySelector("#image-caption").textContent = lastCompletedWord
-          ? "Illustrative placeholder · no image service connected"
-          : "Shared placeholder · no image service connected";
+              : myWordDone
+                ? `Done! Waiting for ${otherPlayer?.name || "your partner"} to finish`
+                : `Sign letter ${myLetters.length + 1} of ${myWord.length}`;
+        const picture = roomState.picture;
+        const job = roomState.pictureJob;
+        const pictureImage = document.querySelector("#picture");
+        const imageText = document.querySelector("#image-text");
+        const imageCopy = document.querySelector("#image-copy");
+        if (picture) {
+          if (pictureImage.getAttribute("src") !== picture.url) pictureImage.src = picture.url;
+          pictureImage.alt = `A picture combining ${picture.words[0].toLowerCase()} and ${picture.words[1].toLowerCase()}`;
+          pictureImage.hidden = false;
+          const status = job?.status === "pending"
+            ? `Generating a picture of ${job.words[0].toLowerCase()} + ${job.words[1].toLowerCase()}…`
+            : job?.status === "error" ? job.message || "The picture couldn't be made this time." : "";
+          imageText.hidden = !status;
+          if (status && imageCopy.textContent !== status) imageCopy.textContent = status;
+          document.querySelector("#image-caption").textContent = `${picture.words[0].toLowerCase()} + ${picture.words[1].toLowerCase()}`;
+        } else {
+          pictureImage.hidden = true;
+          pictureImage.removeAttribute("src");
+          imageText.hidden = false;
+          let copy = "Finish both words to make a picture.";
+          if (job?.status === "pending") copy = `Generating a picture of ${job.words[0].toLowerCase()} + ${job.words[1].toLowerCase()}…`;
+          else if (job?.status === "error") copy = job.message || "The picture couldn't be made this time.";
+          if (imageCopy.textContent !== copy) imageCopy.textContent = copy;
+          document.querySelector("#image-caption").textContent = job ? `${job.words[0].toLowerCase()} + ${job.words[1].toLowerCase()}` : "";
+        }
         const gameOver = document.querySelector("#game-over");
         gameOver.classList.toggle("visible", complete);
         gameOver.textContent = complete
@@ -1116,6 +1147,22 @@
         if (roomState) updateRoomUI();
       }
 
+      function canSign() {
+        return roomState?.status === "playing"
+          && roomState.letters[playerSlot].length < roomState.words[playerSlot].length;
+      }
+
+      function buildSlots(word, letters) {
+        return [...word].map((_, index) => {
+          const slot = document.createElement("span");
+          const confirmed = letters[index];
+          slot.className = `letter${confirmed ? " filled" : ""}`;
+          slot.textContent = confirmed || "?";
+          slot.setAttribute("aria-label", confirmed ? `Confirmed ${confirmed}` : `Letter ${index + 1}`);
+          return slot;
+        });
+      }
+
       for (const letter of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
         const button = document.createElement("button");
         button.type = "button";
@@ -1136,7 +1183,7 @@
       });
 
       function enterManualLetter(letter) {
-        if (!manualInput.open || debugPreview || submittingLetter || roomState?.status !== "playing" || roomState.currentPlayer !== playerSlot) return;
+        if (!manualInput.open || debugPreview || submittingLetter || !canSign()) return;
         select.value = letter;
         currentPrediction = letter;
         predictionSource = "manual";
@@ -1146,8 +1193,7 @@
       }
 
       function submitLetter() {
-        if (debugPreview || submittingLetter || roomState?.status !== "playing" || roomState.currentPlayer !== playerSlot
-          || !socket || socket.readyState !== WebSocket.OPEN) return;
+        if (debugPreview || submittingLetter || !canSign() || !socket || socket.readyState !== WebSocket.OPEN) return;
         const expected = target[accepted.length];
         if (select.value !== expected) {
           notice.textContent = `That is not the next letter in this word. Expected ${expected}; try that sign again.`;
@@ -1285,9 +1331,9 @@
             // Preserve the physical hand orientation for right-hand signing.
             inferenceContext.drawImage(video, 0, 0, inferenceCanvas.width, inferenceCanvas.height);
             const result = handLandmarker.detectForVideo(inferenceCanvas, timestamp);
-            if (roomState?.status === "playing" && roomState.currentPlayer !== playerSlot) {
+            if (roomState?.status === "playing" && !canSign()) {
               updateSignHold("", 0);
-              predictionDetail.textContent = "WAIT FOR YOUR TURN — your partner is signing.";
+              predictionDetail.textContent = "Your word is complete. Waiting for your partner.";
             } else if (manualInput.open) {
               updateSignHold("", 0);
               predictionDetail.textContent = "Recognition paused — close manual input to resume signing.";
@@ -1300,13 +1346,15 @@
             } else if (waitingForRelease) {
               releaseCount = 0;
               predictionDetail.textContent = "Release your hand to re-arm";
-            } else if (document.hidden || submittingLetter || roomState?.status !== "playing" || roomState.currentPlayer !== playerSlot) {
+            } else if (document.hidden || submittingLetter || !canSign()) {
               updateSignHold("", 0);
-              predictionDetail.textContent = "Waiting for your turn";
+              predictionDetail.textContent = roomState?.status === "ready"
+                ? "Waiting for both players to get ready"
+                : "Waiting for the round to start";
             } else {
               const input = new window.ort.Tensor("float32", normalizeLandmarks(result.landmarks[0]), [1, 63]);
               const output = await classifierSession.run({ landmarks: input });
-              if (!cameraStream || manualInput.open || document.hidden || roomState?.status !== "playing" || roomState.currentPlayer !== playerSlot) {
+              if (!cameraStream || manualInput.open || document.hidden || !canSign()) {
                 updateSignHold("", 0);
                 if (cameraStream) animationFrame = requestAnimationFrame(recognizeFrame);
                 return;

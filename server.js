@@ -5,15 +5,31 @@ const path = require("node:path");
 const { WebSocketServer, WebSocket } = require("ws");
 
 const ROOT = __dirname;
+try {
+  if (typeof process.loadEnvFile === "function") process.loadEnvFile(path.join(ROOT, ".env"));
+} catch (error) {
+  if (error.code !== "ENOENT") console.warn(`Could not read .env: ${error.message}`);
+}
+
 const PORT = Number(process.env.PORT || 8000);
 const ROUND_SECONDS = 120;
 const POINTS_PER_LETTER = 25;
+const WORDS_PER_ROUND = 2;
 const WORDS = [
   "CAT", "DOG", "SUN", "HAT", "HOME", "LOVE", "BIRD", "FISH", "TREE", "BOOK",
   "MOON", "STAR", "RAIN", "WIND", "LEAF", "BEAR", "FROG", "DUCK", "BOAT", "SHIP",
   "CAKE", "MILK", "PEAR", "APPLE", "BREAD", "SMILE", "HAPPY", "LIGHT", "GREEN", "BLUE",
   "RED", "GOLD", "HAND", "WAVE", "PLAY", "SONG", "DREAM", "CLOUD", "WATER", "EARTH",
 ];
+const IMAGE_ENDPOINT = process.env.META_MUSE_ENDPOINT || "https://api.meta.ai/v1/images/generations";
+const IMAGE_MODEL = process.env.META_MUSE_MODEL || "muse-image-1.0";
+const IMAGE_SIZE = process.env.META_MUSE_SIZE || "1024x1024";
+const IMAGE_TIMEOUT_MS = Number(process.env.IMAGE_TIMEOUT_MS || 120_000);
+const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
+const MAX_IMAGES_PER_ROOM = 4;
+const MAX_IMAGES_IN_FLIGHT = 3;
+const MAX_IMAGES_PER_MINUTE = 20;
+const GENERATED_PATH = /^\/generated\/([0-9a-f]{32})$/;
 const PUBLIC_FILES = new Set([
   "/index.html",
   "/assets/asl_classes.json",
@@ -29,6 +45,9 @@ const MIME_TYPES = {
 };
 const rooms = new Map();
 const sockets = new Map();
+const images = new Map();
+let imageJobsInFlight = 0;
+const imageStarts = [];
 
 function randomCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -44,9 +63,9 @@ function makeRoom(targetScore, roundDuration = ROUND_SECONDS) {
     code,
     players: [null, null],
     status: "waiting",
-    currentPlayer: 0,
-    target: randomWord(),
-    letters: "",
+    round: 1,
+    words: pickWords(),
+    letters: ["", ""],
     score: 0,
     targetScore,
     roundDuration,
@@ -55,6 +74,9 @@ function makeRoom(targetScore, roundDuration = ROUND_SECONDS) {
     remainingMs: roundDuration * 1000,
     completedReason: null,
     pendingRematch: null,
+    picture: null,
+    pictureJob: null,
+    imageIds: [],
     actionIds: new Set(),
     lastEmptyAt: null,
   };
@@ -62,9 +84,26 @@ function makeRoom(targetScore, roundDuration = ROUND_SECONDS) {
   return room;
 }
 
-function randomWord(previous) {
-  const choices = WORDS.filter((word) => word !== previous);
-  return choices[crypto.randomInt(choices.length)];
+function pickWords(previous = []) {
+  const excluded = new Set(previous);
+  const byLength = new Map();
+  for (const word of WORDS.filter((word) => !excluded.has(word))) {
+    if (!byLength.has(word.length)) byLength.set(word.length, []);
+    byLength.get(word.length).push(word);
+  }
+  let eligible = [...byLength.values()].filter((words) => words.length >= WORDS_PER_ROUND);
+  if (!eligible.length) {
+    const allByLength = new Map();
+    for (const word of WORDS) {
+      if (!allByLength.has(word.length)) allByLength.set(word.length, []);
+      allByLength.get(word.length).push(word);
+    }
+    eligible = [...allByLength.values()].filter((words) => words.length >= WORDS_PER_ROUND);
+  }
+  const bucket = eligible[crypto.randomInt(eligible.length)];
+  const first = bucket[crypto.randomInt(bucket.length)];
+  const secondChoices = bucket.filter((word) => word !== first);
+  return [first, secondChoices[crypto.randomInt(secondChoices.length)]];
 }
 
 function roomSnapshot(room) {
@@ -82,8 +121,8 @@ function roomSnapshot(room) {
       rematchReady: player.rematchReady,
     })),
     pendingRematch: room.pendingRematch,
-    currentPlayer: room.currentPlayer,
-    target: room.target,
+    round: room.round,
+    words: room.words,
     letters: room.letters,
     score: room.score,
     targetScore: room.targetScore,
@@ -91,6 +130,8 @@ function roomSnapshot(room) {
     wordsCompleted: room.wordsCompleted,
     secondsRemaining,
     completedReason: room.completedReason,
+    picture: room.picture,
+    pictureJob: room.pictureJob,
   };
 }
 
@@ -185,12 +226,12 @@ function handleRestart(socket, message) {
   room.roundDuration = room.pendingRematch.roundDuration;
   room.pendingRematch = null;
   for (const entry of room.players) entry.rematchReady = false;
-  room.target = randomWord(room.target);
+  room.words = pickWords(room.words);
+  room.letters = ["", ""];
+  room.round += 1;
   room.status = "waiting";
   room.score = 0;
-  room.letters = "";
   room.wordsCompleted = 0;
-  room.currentPlayer = 0;
   room.remainingMs = room.roundDuration * 1000;
   room.deadline = null;
   room.completedReason = null;
@@ -271,6 +312,135 @@ function detachPlayer(socket) {
   broadcast(room, "room:updated");
 }
 
+class ImageError extends Error {}
+
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+const JPEG_SIGNATURE = Buffer.from([0xff, 0xd8, 0xff]);
+
+function sniffImageType(bytes) {
+  if (bytes.subarray(0, 4).equals(PNG_SIGNATURE)) return "image/png";
+  if (bytes.subarray(0, 3).equals(JPEG_SIGNATURE)) return "image/jpeg";
+  if (bytes.subarray(0, 4).toString("latin1") === "RIFF" && bytes.subarray(8, 12).toString("latin1") === "WEBP") {
+    return "image/webp";
+  }
+  return null;
+}
+
+function buildImagePrompt([first, second]) {
+  const a = first.toLowerCase();
+  const b = second.toLowerCase();
+  return "Create one playful cartoon illustration of a single fused concept: "
+    + `'${a} ${b}'. Clearly include elements of '${a}' and '${b}' within one cohesive scene. `
+    + "Use cheerful colors and a simple background. No text, letters, captions, or watermarks.";
+}
+
+async function requestImage(words) {
+  const apiKey = process.env.META_MUSE_API_KEY;
+  if (!apiKey) throw new ImageError("Picture generation isn't set up on this server.");
+  const response = await fetch(IMAGE_ENDPOINT, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: IMAGE_MODEL,
+      prompt: buildImagePrompt(words),
+      n: 1,
+      size: IMAGE_SIZE,
+      response_format: "b64_json",
+      output_format: "png",
+    }),
+    signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    console.error(`Image API error ${response.status}: ${(await response.text()).slice(0, 300)}`);
+    throw new ImageError("The picture service couldn't make this picture.");
+  }
+  const encoded = (await response.json())?.data?.[0]?.b64_json;
+  if (typeof encoded !== "string" || !encoded) throw new ImageError("The picture service returned no image.");
+  const bytes = Buffer.from(encoded, "base64");
+  const type = sniffImageType(bytes);
+  if (!type || bytes.length > MAX_IMAGE_BYTES) throw new ImageError("The picture service returned an unusable image.");
+  return { bytes, type };
+}
+
+function storeImage(room, image) {
+  const id = crypto.randomBytes(16).toString("hex");
+  images.set(id, image);
+  room.imageIds.push(id);
+  while (room.imageIds.length > MAX_IMAGES_PER_ROOM) images.delete(room.imageIds.shift());
+  return id;
+}
+
+function forgetImages(room) {
+  for (const id of room.imageIds) images.delete(id);
+  room.imageIds = [];
+}
+
+function reserveImageSlot() {
+  const now = Date.now();
+  while (imageStarts.length && now - imageStarts[0] > 60_000) imageStarts.shift();
+  if (imageJobsInFlight >= MAX_IMAGES_IN_FLIGHT || imageStarts.length >= MAX_IMAGES_PER_MINUTE) {
+    throw new ImageError("The picture service is busy. The next round's picture should work.");
+  }
+  imageStarts.push(now);
+  imageJobsInFlight += 1;
+}
+
+async function runPictureJob(room, round, words) {
+  let imageId = null;
+  let failure = null;
+  try {
+    reserveImageSlot();
+    let image;
+    try {
+      image = await requestImage(words);
+    } finally {
+      imageJobsInFlight -= 1;
+    }
+    imageId = storeImage(room, image);
+  } catch (error) {
+    if (error instanceof ImageError) failure = error.message;
+    else {
+      console.error("Picture generation failed:", error);
+      failure = "The picture service couldn't be reached.";
+    }
+  }
+  if (rooms.get(room.code) !== room) {
+    if (imageId) images.delete(imageId);
+    return;
+  }
+  if (imageId && (!room.picture || round > room.picture.round)) {
+    room.picture = { round, words, url: `/generated/${imageId}` };
+    if (room.pictureJob?.round === round) room.pictureJob = null;
+  } else if (imageId) {
+    images.delete(imageId);
+    room.imageIds = room.imageIds.filter((id) => id !== imageId);
+  } else if (room.pictureJob?.round === round) {
+    room.pictureJob = { round, words, status: "error", message: failure };
+  }
+  broadcast(room, "picture:updated");
+}
+
+function startPictureJob(room, round, words) {
+  room.pictureJob = { round, words, status: "pending", message: null };
+  runPictureJob(room, round, words).catch((error) => console.error("Picture job crashed:", error));
+}
+
+function completeRound(room) {
+  const finishedRound = room.round;
+  const finishedWords = room.words;
+  room.wordsCompleted += WORDS_PER_ROUND;
+  room.score += finishedWords.reduce((total, word) => total + word.length * POINTS_PER_LETTER, 0);
+  startPictureJob(room, finishedRound, finishedWords);
+  if (room.score >= room.targetScore) {
+    finishRoom(room, "score");
+    return;
+  }
+  room.round += 1;
+  room.words = pickWords(finishedWords);
+  room.letters = ["", ""];
+  broadcast(room, "round:completed", { completedWords: finishedWords });
+}
+
 function handleLetter(socket, message) {
   const membership = sockets.get(socket);
   if (!membership) return fail(socket, "Join a room before sending a letter.");
@@ -283,30 +453,29 @@ function handleLetter(socket, message) {
     send(socket, { type: "room:updated", room: roomSnapshot(room) });
     return;
   }
-  if (slot !== room.currentPlayer) return fail(socket, "It is the other player's turn.");
   if (typeof message.letter !== "string" || !/^[A-Z]$/.test(message.letter)) {
     return fail(socket, "Send one uppercase letter.");
   }
-  const word = room.target;
-  if (message.letter !== word[room.letters.length]) {
-    return fail(socket, "That letter does not match the next letter in this practice word.");
+  const word = room.words[slot];
+  const progress = room.letters[slot];
+  if (progress.length >= word.length) {
+    const partner = room.players[1 - slot]?.name || "your partner";
+    return fail(socket, `You've finished ${word}. Waiting for ${partner} to finish their word.`);
+  }
+  if (message.letter !== word[progress.length]) {
+    return fail(socket, "That letter does not match the next letter in your word.");
   }
 
   room.actionIds.add(message.actionId);
   if (room.actionIds.size > 256) room.actionIds.delete(room.actionIds.values().next().value);
-  room.letters += message.letter;
-  room.currentPlayer = 1 - room.currentPlayer;
+  room.letters[slot] = progress + message.letter;
 
-  let completedWord = null;
-  if (room.letters === word) {
-    completedWord = word;
-    room.wordsCompleted += 1;
-    room.score += word.length * POINTS_PER_LETTER;
-    room.target = randomWord(word);
-    room.letters = "";
+  if (room.letters.every((letters, index) => letters === room.words[index])) {
+    completeRound(room);
+    return;
   }
-  if (room.score >= room.targetScore) finishRoom(room, "score");
-  else broadcast(room, "letter:accepted", { accepted: message.letter, completedWord });
+  const completedWord = room.letters[slot] === word ? word : null;
+  broadcast(room, "letter:accepted", { accepted: message.letter, slot, completedWord });
 }
 
 function handleVideoReady(socket) {
@@ -432,6 +601,22 @@ function serveFile(request, response) {
     response.writeHead(400).end("Bad request");
     return;
   }
+  const imageMatch = GENERATED_PATH.exec(requested);
+  if (imageMatch) {
+    const image = images.get(imageMatch[1]);
+    if (!image) {
+      response.writeHead(404).end("Not found");
+      return;
+    }
+    response.writeHead(200, {
+      "Content-Type": image.type,
+      "Content-Length": image.bytes.length,
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "private, max-age=3600",
+    });
+    response.end(image.bytes);
+    return;
+  }
   if (!PUBLIC_FILES.has(requested)) {
     response.writeHead(404).end("Not found");
     return;
@@ -497,7 +682,10 @@ setInterval(() => {
     } else if (room.status === "playing") {
       broadcast(room, "timer:updated");
     }
-    if (room.lastEmptyAt && now - room.lastEmptyAt > 10 * 60 * 1000) rooms.delete(room.code);
+    if (room.lastEmptyAt && now - room.lastEmptyAt > 10 * 60 * 1000) {
+      forgetImages(room);
+      rooms.delete(room.code);
+    }
   }
 }, 1000).unref();
 
