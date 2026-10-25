@@ -134,6 +134,8 @@
     .turn-tag { flex-shrink: 0; padding: 4px 6px; background: var(--yellow); font: bold .6rem monospace; }
     .player-connection { color: var(--muted); font-size: .7rem; margin-top: 8px; }
     .preview { display: grid; place-items: center; min-height: 240px; margin-top: 18px; overflow: hidden; background: #dde2d5; text-align: center; }
+    #camera-preview { position: relative; }
+    .hand-landmark-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
     .preview-icon { font: 2.5rem Georgia, serif; color: #52694f; }
     .preview p { max-width: 240px; margin: 12px 20px; color: #53614e; font-size: .8rem; }
     video { display: block; width: 100%; height: 240px; object-fit: cover; background: #162a21; }
@@ -339,10 +341,10 @@
           <p class="eyebrow" id="lesson-progress">Letter 1 of 26</p>
           <h2>Try this letter</h2>
           <strong class="lesson-letter" id="lesson-letter">A</strong>
-          <p class="muted">Enable local ASL recognition, then hold the sign steady for 1 second. Your camera is processed in this browser.</p>
+          <p class="muted">Enable local ASL recognition, then hold the sign until the timer completes. Your camera is processed in this browser.</p>
           <div class="lesson-hold">
-            <label for="lesson-hold-progress" id="lesson-hold-label">Hold the prompted sign for 1 second</label>
-            <progress id="lesson-hold-progress" max="1000" value="0" aria-labelledby="lesson-hold-label"></progress>
+            <label for="lesson-hold-progress" id="lesson-hold-label">Hold the prompted sign for 0.8 seconds</label>
+            <progress id="lesson-hold-progress" max="800" value="0" aria-labelledby="lesson-hold-label"></progress>
           </div>
           <p class="lesson-status" id="lesson-status" role="status" aria-live="polite">Start the camera when you’re ready.</p>
           <div class="lesson-actions">
@@ -392,8 +394,8 @@
             <span id="turn-warning-copy"></span>
           </div>
           <div class="hold-meter">
-            <label for="hold-progress" id="hold-label">Hold the sign for 1 second</label>
-            <progress id="hold-progress" max="1000" value="0" aria-labelledby="hold-label"></progress>
+            <label for="hold-progress" id="hold-label">Hold the sign for 0.8 seconds</label>
+            <progress id="hold-progress" max="800" value="0" aria-labelledby="hold-label"></progress>
           </div>
           <div class="prediction-readout" aria-live="polite">
             <span class="prediction-letter" id="live-prediction">—</span>
@@ -485,7 +487,7 @@
 
     <section class="card controls-card" aria-labelledby="controls-title">
       <h2 id="controls-title">Hold to register</h2>
-      <p class="muted">Hold the expected sign steady for 1 second to register it automatically, then lower your hand before the next letter. The server checks your word and letter. Manual input is for testing.</p>
+      <p class="muted">Hold the expected sign steady until the timer completes. The server checks your word and letter. Manual input is for testing.</p>
       <div class="controls">
         <label class="field" for="prediction" hidden>Detected letter
           <select id="prediction" disabled>
@@ -539,8 +541,8 @@
       let roomRequestPending = false;
       let pendingSource = "";
       let leavingRoom = false;
-      const holdDuration = 1500;
-      const releaseFrameThreshold = 4;
+      // shortcut: 800ms of stable recognition aims for about 1s of physical holding; actual lock-on varies by device.
+      const holdDuration = 800;
       const mediaPipeVersion = "0.10.14";
       const mediaPipeWasm = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${mediaPipeVersion}/wasm`;
       const handLandmarkerModel = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
@@ -593,6 +595,11 @@
       const reconnectStatus = document.querySelector("#reconnect-status");
       const inferenceCanvas = document.createElement("canvas");
       const inferenceContext = inferenceCanvas.getContext("2d");
+      const landmarkCanvas = document.createElement("canvas");
+      landmarkCanvas.className = "hand-landmark-overlay";
+      landmarkCanvas.setAttribute("aria-hidden", "true");
+      const landmarkContext = landmarkCanvas.getContext("2d");
+      const handConnections = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [17, 18], [18, 19], [19, 20], [0, 17]];
       let cameraStream = null;
       let videoShareStream = null;
       let peerConnection = null;
@@ -608,8 +615,6 @@
       let holdStartedAt = null;
       let lastHoldAt = null;
       let submittingLetter = false;
-      let releaseCount = 0;
-      let waitingForRelease = false;
       let animationFrame = 0;
       let lastInferenceAt = 0;
       let processingFrame = false;
@@ -718,7 +723,6 @@
       }
 
       function startLessonMode(randomOrder) {
-        if (cameraStream) stopCamera();
         lessonMode = true;
         lessonSandbox = randomOrder;
         lessonOrder = randomOrder ? shuffledLessonAlphabet() : [...lessonAlphabet];
@@ -761,19 +765,11 @@
         document.querySelector("#lesson-skip").disabled = !lessonMode;
         document.querySelector("#lesson-finish-sandbox").hidden = !lessonSandbox;
         lessonHoldProgress.value = 0;
-        lessonHoldLabel.textContent = "Hold the prompted sign for 1 second";
-      }
-
-      function waitForLessonHandRelease() {
-        updateSignHold("", 0);
-        if (cameraStream) {
-          waitingForRelease = true;
-          releaseCount = 0;
-        }
+        lessonHoldLabel.textContent = "Hold the prompted sign for 0.8 seconds";
       }
 
       function advanceLesson(feedback) {
-        waitForLessonHandRelease();
+        updateSignHold("", 0);
         lessonIndex += 1;
         if (lessonIndex >= lessonOrder.length && !lessonSandbox) {
           finishLessons();
@@ -798,7 +794,7 @@
           advanceLesson(`Correct! You signed ${expected}.`);
         } else {
           lessonWrong += 1;
-          waitForLessonHandRelease();
+          updateSignHold("", 0);
           lessonStatus.textContent = `The model detected ${letter}. Try ${expected} again, or skip it.`;
         }
       }
@@ -1171,8 +1167,6 @@
             select.value = "";
             currentPrediction = "";
             updateSignHold("", 0);
-            waitingForRelease = Boolean(cameraStream);
-            releaseCount = 0;
             manualInput.open = false;
           }
           roomState = { ...message.room, targetScore: message.room.targetScore ?? 500, roundDuration: message.room.roundDuration ?? 120 };
@@ -1418,7 +1412,7 @@
         document.querySelector("#turn-warning").classList.toggle("ready", isMyTurn || complete);
         document.querySelector("#turn-warning-copy").textContent = complete
           ? "This round has ended. Choose Play again above to start another round."
-          : isMyTurn ? `Sign ${target[accepted.length]} and hold for 1 second, or use manual input.`
+          : isMyTurn ? `Sign ${target[accepted.length]} and hold until the timer completes, or use manual input.`
           : myWordDone ? `You've finished ${myWord}. Waiting for ${otherPlayer?.name || "your partner"} to finish their word.`
           : roomState.status === "ready" ? `${readyInstruction} The timer starts when both players are ready.`
           : roomState.status === "waiting" ? "Waiting for both players to connect."
@@ -1526,10 +1520,6 @@
           socket.send(JSON.stringify({ type: "manual:ready", ready: manualInput.open }));
         }
         updateSignHold("", 0);
-        if (cameraStream) {
-          waitingForRelease = true;
-          releaseCount = 0;
-        }
         render();
       }
 
@@ -1566,9 +1556,8 @@
         currentPrediction = "";
         predictionSource = "";
         if (pendingSource === "camera") {
-          waitingForRelease = true;
           livePrediction.textContent = "—";
-          predictionDetail.textContent = "Release your hand to re-arm";
+          predictionDetail.textContent = "Letter sent. Ready for the next sign.";
         }
         notice.textContent = "Registering your letter…";
         render();
@@ -1633,6 +1622,43 @@
         return values;
       }
 
+      function drawHandNodes(landmarks, video) {
+        const ratio = window.devicePixelRatio || 1;
+        const width = Math.round(cameraPreview.clientWidth * ratio);
+        const height = Math.round(cameraPreview.clientHeight * ratio);
+        if (!width || !height) return;
+        if (landmarkCanvas.width !== width || landmarkCanvas.height !== height) {
+          landmarkCanvas.width = width;
+          landmarkCanvas.height = height;
+        }
+        landmarkContext.clearRect(0, 0, width, height);
+        if (!landmarks || !video.videoWidth || !video.videoHeight) return;
+        const scale = Math.max(width / video.videoWidth, height / video.videoHeight);
+        const drawnWidth = video.videoWidth * scale;
+        const drawnHeight = video.videoHeight * scale;
+        const offsetX = (width - drawnWidth) / 2;
+        const offsetY = (height - drawnHeight) / 2;
+        landmarkContext.beginPath();
+        for (const [start, end] of handConnections) {
+          const first = landmarks[start];
+          const second = landmarks[end];
+          landmarkContext.moveTo(offsetX + first.x * drawnWidth, offsetY + first.y * drawnHeight);
+          landmarkContext.lineTo(offsetX + second.x * drawnWidth, offsetY + second.y * drawnHeight);
+        }
+        landmarkContext.strokeStyle = "#36d66b";
+        landmarkContext.lineWidth = 2 * ratio;
+        landmarkContext.stroke();
+        for (const point of landmarks) {
+          landmarkContext.beginPath();
+          landmarkContext.arc(offsetX + point.x * drawnWidth, offsetY + point.y * drawnHeight, 4 * ratio, 0, Math.PI * 2);
+          landmarkContext.fillStyle = "#36d66b";
+          landmarkContext.fill();
+          landmarkContext.lineWidth = 1.5 * ratio;
+          landmarkContext.strokeStyle = "#f3fff5";
+          landmarkContext.stroke();
+        }
+      }
+
       function updateSignHold(label, timestamp) {
         // A long frame gap cannot demonstrate a continuous hold.
         if (!label || label !== lastStableLabel || lastHoldAt === null || timestamp - lastHoldAt > 500) {
@@ -1644,26 +1670,12 @@
         holdProgress.value = elapsed;
         lessonHoldProgress.value = elapsed;
         lessonHoldLabel.textContent = label && lessonMode
-          ? `Hold ${label} · ${(elapsed / 1000).toFixed(1)} / 1 second`
-          : "Hold the prompted sign for 1 second";
+          ? `Hold ${label} · ${(elapsed / 1000).toFixed(1)} / 0.8 seconds`
+          : "Hold the prompted sign for 0.8 seconds";
         holdLabel.textContent = label
-          ? `Hold ${label} · ${(elapsed / 1000).toFixed(1)} / 1 second`
-          : "Hold the sign for 1 second";
+          ? `Hold ${label} · ${(elapsed / 1000).toFixed(1)} / 0.8 seconds`
+          : "Hold the sign for 0.8 seconds";
         return elapsed >= holdDuration;
-      }
-
-      function observeNoHand() {
-        updateSignHold("", 0);
-        if (!waitingForRelease) {
-          return;
-        }
-        releaseCount += 1;
-        if (releaseCount >= releaseFrameThreshold) {
-          waitingForRelease = false;
-          releaseCount = 0;
-          cameraStatus.textContent = "Hand released. Ready for the next sign; inference stays in this browser.";
-          predictionDetail.textContent = "No stable handshape yet";
-        }
       }
 
       async function recognizeFrame(timestamp) {
@@ -1686,6 +1698,7 @@
             // Preserve the physical hand orientation for right-hand signing.
             inferenceContext.drawImage(video, 0, 0, inferenceCanvas.width, inferenceCanvas.height);
             const result = handLandmarker.detectForVideo(inferenceCanvas, timestamp);
+            drawHandNodes(result.landmarks[0], video);
             if (roomState?.status === "playing" && !canSign()) {
               updateSignHold("", 0);
               predictionDetail.textContent = "Your word is complete. Waiting for your partner.";
@@ -1693,14 +1706,9 @@
               updateSignHold("", 0);
               predictionDetail.textContent = "Recognition paused — close manual input to resume signing.";
             } else if (!result.landmarks.length) {
-              observeNoHand();
+              updateSignHold("", 0);
               livePrediction.textContent = "—";
-              predictionDetail.textContent = waitingForRelease
-                ? `Release hand · ${releaseCount}/${releaseFrameThreshold}`
-                : "No hand detected";
-            } else if (waitingForRelease) {
-              releaseCount = 0;
-              predictionDetail.textContent = "Release your hand to re-arm";
+              predictionDetail.textContent = "No hand detected";
             } else if (document.hidden || submittingLetter || (!lessonMode && !canSign())) {
               updateSignHold("", 0);
               predictionDetail.textContent = lessonMode
@@ -1768,11 +1776,10 @@
         handLandmarker?.close();
         handLandmarker = null;
         updateSignHold("", 0);
-        releaseCount = 0;
-        waitingForRelease = false;
         const offMessage = document.createElement("div");
         offMessage.innerHTML = '<div class="preview-icon" aria-hidden="true">◎</div><p>Your camera is off. Enable it when you’re ready.</p>';
         cameraPreview.replaceChildren(offMessage);
+        landmarkContext.clearRect(0, 0, landmarkCanvas.width, landmarkCanvas.height);
         cameraStart.hidden = false;
         cameraStop.hidden = true;
         currentPrediction = "";
@@ -1803,7 +1810,7 @@
           video.playsInline = true;
           video.setAttribute("aria-label", "Your live camera preview, shown as another person sees you");
           video.srcObject = cameraStream;
-          cameraPreview.replaceChildren(video);
+          cameraPreview.replaceChildren(video, landmarkCanvas);
           cameraStart.hidden = true;
           cameraStop.hidden = false;
           await video.play();
@@ -1811,8 +1818,8 @@
           await loadRecognition();
           render();
           cameraStatus.textContent = lessonMode
-            ? "Local recognition is on. Hold the prompted sign for 1 second to check it."
-            : "Local recognition is on. Hold the expected sign for 1 second to register it, then lower your hand.";
+            ? "Local recognition is on. Hold the prompted sign until the timer completes."
+            : "Local recognition is on. Hold the expected sign until the timer completes.";
           if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "asl:ready" }));
           animationFrame = requestAnimationFrame(recognizeFrame);
         } catch (error) {
