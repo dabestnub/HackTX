@@ -82,8 +82,12 @@
     #preview-game { padding: 0; margin-top: 12px; min-height: 44px; border: 0; text-decoration: underline; text-underline-offset: 4px; font-size: .8rem; }
     .lobby-panel > p.preview-help { margin: 4px 0 12px; font-size: .75rem; }
     .lobby-panel > p.lobby-error { color: #a02c21; margin-bottom: 0; }
-    .lesson-screen { margin: 24px 0; border-radius: var(--radius); padding: clamp(20px, 3vw, 36px); border: 1px solid var(--line); background: #faf9f4; }
+    .lesson-screen { position: fixed; inset: 0; z-index: 20; overflow: auto; width: 100%; min-height: 100vh; min-height: 100dvh; margin: 0; border-radius: 0; padding: clamp(24px, 5vw, 64px); background: var(--paper); }
     .lesson-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
+    .lesson-toolbar h2 { font: clamp(2.2rem, 5vw, 3.5rem)/1.15 Georgia, serif; letter-spacing: -.04em; }
+    .lesson-toolbar .eyebrow { margin-bottom: 8px; }
+    .lesson-screen > .tutorial-panel, .lesson-screen > #lesson-practice-panel { width: min(100%, 1240px); margin-inline: auto; }
+    .lesson-screen > .lesson-toolbar { width: min(100%, 1240px); margin-inline: auto; margin-bottom: 32px; }
     .lesson-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); gap: 32px; align-items: stretch; }
     .lesson-guide, .lesson-practice, .lesson-summary { min-width: 0; padding: 24px; border: 1px solid #d4d7c9; border-radius: 16px; box-shadow: 0 8px 24px rgb(32 58 48 / 7%); }
     .lesson-guide { background: #fff; }
@@ -306,7 +310,7 @@
     </section>
 
     <div id="menu-screen">
-      <section class="lobby" aria-label="Create or join a game room">
+      <section class="lobby" id="home-lobby" aria-label="Create or join a game room">
         <article class="card lobby-intro">
         <p class="lobby-copy">Create a room, invite a friend, and sign your own words side by side. Finish each pair to make a shared picture and race to your points goal before time runs out.</p>
         <div class="play-modes" aria-label="Choose how to play">
@@ -366,8 +370,8 @@
           <button type="submit" id="join-room">Join a room</button>
         </form>
         <div class="lobby-tools">
-          <button type="button" class="secondary" id="open-tutorial">ASL Letter Coach</button>
-          <button type="button" id="start-lessons">Practice ASL letters</button>
+          <button type="button" class="secondary" id="open-tutorial">ASL Fingerspelling Lessons</button>
+          <button type="button" id="start-lessons">Ask Letter Practice</button>
         </div>
         <button type="button" class="secondary" id="preview-game">Preview game screen</button>
         <p class="preview-help muted">A sample round. No room or camera needed.</p>
@@ -375,12 +379,13 @@
         </article>
       </section>
 
-      <section class="lesson-screen" id="lesson-screen" aria-labelledby="lesson-title">
+      <section class="lesson-screen" id="lesson-screen" aria-labelledby="lesson-title" hidden>
         <div class="lesson-toolbar">
           <div>
             <p class="eyebrow">Learn at your own pace</p>
             <h2 id="lesson-title" tabindex="-1">ASL fingerspelling lessons</h2>
           </div>
+          <button type="button" class="secondary" data-return-home>Back to main page</button>
         </div>
         <section class="card tutorial-panel" id="tutorial-panel" aria-labelledby="tutorial-title">
           <h3 id="tutorial-title">ASL Letter Coach</h3>
@@ -405,6 +410,15 @@
           <p id="tutorial-status" class="tutorial-meta" role="status" aria-live="polite">Select a letter and press Get guide.</p>
           <div id="tutorial-output" class="tutorial-output">Welcome! I can coach one letter at a time.</div>
         </section>
+      </section>
+      <section class="lesson-screen" id="practice-screen" aria-labelledby="practice-page-title" hidden>
+        <div class="lesson-toolbar">
+          <div>
+            <p class="eyebrow">Practice with your camera</p>
+            <h2 id="practice-page-title" tabindex="-1">Ask Letter Practice</h2>
+          </div>
+          <button type="button" class="secondary" data-return-home>Back to main page</button>
+        </div>
         <section id="lesson-practice-panel" aria-labelledby="practice-title">
         <h3 id="practice-title">ASL Letter Practice</h3>
         <div class="lesson-mode-actions">
@@ -669,7 +683,9 @@
       const waitingScreen = document.querySelector("#waiting-screen");
       const gameScreen = document.querySelector("#game-screen");
       const resultsScreen = document.querySelector("#results-screen");
+      const homeLobby = document.querySelector("#home-lobby");
       const lessonScreen = document.querySelector("#lesson-screen");
+      const practiceScreen = document.querySelector("#practice-screen");
       const lessonExercise = document.querySelector("#lesson-exercise");
       const lessonSummary = document.querySelector("#lesson-summary");
       const lessonLetter = document.querySelector("#lesson-letter");
@@ -904,10 +920,16 @@
       }
 
       tutorialOpenButton.addEventListener("click", () => {
-        tutorialPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+        homeLobby.hidden = true;
+        practiceScreen.hidden = true;
+        lessonScreen.hidden = false;
+        document.querySelector("#lesson-title").focus();
       });
       document.querySelector("#start-lessons").addEventListener("click", () => {
-        lessonPracticePanel.scrollIntoView({ behavior: "smooth", block: "start" });
+        startLessonMode(false);
+      });
+      document.querySelectorAll("[data-return-home]").forEach((button) => {
+        button.addEventListener("click", returnToMenu);
       });
       tutorialGoal.addEventListener("change", () => {
         const goal = tutorialGoal.value;
@@ -1020,6 +1042,9 @@
         document.querySelector("#leave-room").textContent = "Leave room";
         document.querySelector("#debug-preview-note").hidden = true;
         menuScreen.hidden = false;
+        homeLobby.hidden = false;
+        lessonScreen.hidden = true;
+        practiceScreen.hidden = true;
         waitingScreen.hidden = true;
         gameScreen.hidden = true;
         resultsScreen.hidden = true;
@@ -1055,6 +1080,9 @@
         gameScreen.hidden = true;
         resultsScreen.hidden = true;
         reconnectPanel.hidden = true;
+        homeLobby.hidden = true;
+        lessonScreen.hidden = true;
+        practiceScreen.hidden = false;
         lessonExercise.hidden = false;
         lessonSummary.hidden = true;
         document.body.classList.add("lesson-active");
@@ -1063,7 +1091,7 @@
         lessonStatus.textContent = randomOrder
           ? "Random letter: sign each prompt, or finish whenever you like."
           : "Start the camera when you’re ready.";
-        lessonScreen.scrollIntoView({ behavior: "smooth", block: "start" });
+        document.querySelector("#practice-page-title").focus();
       }
 
       function shuffledLessonAlphabet() {
@@ -2091,7 +2119,7 @@
       }
 
       cameraStart.addEventListener("click", async () => {
-        if (!menuScreen.hidden && !lessonMode) startLessonMode(false);
+        if (!practiceScreen.hidden && !lessonMode) startLessonMode(false);
         if (!navigator.mediaDevices?.getUserMedia) {
           cameraStatus.textContent = "Camera access is unavailable here. Open this hosted page over HTTPS (or use localhost) in a supported browser.";
           return;

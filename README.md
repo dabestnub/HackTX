@@ -23,9 +23,9 @@ npm start
 
 Then open `http://localhost:8000` in two browser windows/devices.
 
-The home page’s **Learn ASL letters** section offers solo practice using the alphabet chart in [`signLanguage.jpg`](signLanguage.jpg). Camera recognition runs locally, lets learners retry or skip a letter, and shows correct, incorrect, and skipped counts at the end. Random letter practice cycles through shuffled letters until you finish.
+The home page has separate full-screen **ASL Fingerspelling Lessons** and **Ask Letter Practice** pages. Letter practice uses the alphabet chart in [`signLanguage.jpg`](signLanguage.jpg); camera recognition runs locally, lets learners retry or skip a letter, and shows correct, incorrect, and skipped counts at the end. Random letter practice cycles through shuffled letters until you finish.
 
-The lessons section also includes an **ASL Letter Coach** with short lessons for each letter and follow-up questions. It uses Meta’s chat completions API with `muse-spark-1.3` by default. Set `META_MUSE_API_KEY` in `.env` or the hosting environment; endpoint and model overrides are optional. Text lessons fall back to local guidance if the API is unavailable.
+The full-screen lessons page includes an **ASL Letter Coach** with short lessons for each letter and follow-up questions. It uses Meta’s chat completions API with `muse-spark-1.3` by default. Set `META_MUSE_API_KEY` in `.env` or the hosting environment; endpoint and model overrides are optional. Text lessons fall back to local guidance if the API is unavailable.
 
 For image generation, copy `.env.example` to `.env` and set `META_MUSE_API_KEY`. On Render, set the key in the service environment. The game still works if no key is configured; picture generation displays a setup error.
 
