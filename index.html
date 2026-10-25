@@ -125,7 +125,6 @@
     .prediction-letter { font: 2rem monospace; }
     .turn-warning { margin-top: 16px; padding: 18px; border: 2px solid #8b4d16; background: #fff0c6; color: #60340d; font-weight: 750; }
     .turn-warning.ready { background: #e4edd7; border-color: #43643e; color: #203a30; }
-    .turn-warning strong { display: block; font-size: 1.1rem; letter-spacing: .04em; }
     .turn-warning span { display: block; margin-top: 5px; font-size: .85rem; }
     .hold-meter { margin-top: 12px; font-size: .78rem; }
     .hold-meter progress { display: block; width: 100%; height: 12px; margin-top: 6px; accent-color: var(--ink); }
@@ -353,7 +352,6 @@
             <div><div class="preview-icon" aria-hidden="true">◎</div><p>Your camera is off. Enable it when you're ready.</p></div>
           </div>
           <div class="turn-warning" id="turn-warning" role="status" aria-live="polite" hidden>
-            <strong id="turn-warning-title">WAIT FOR YOUR TURN</strong>
             <span id="turn-warning-copy"></span>
           </div>
           <div class="camera-actions">
@@ -1047,8 +1045,6 @@
         const isMyTurn = roomState.status === "playing" && playerSlot === roomState.currentPlayer;
         document.querySelector("#turn-warning").hidden = false;
         document.querySelector("#turn-warning").classList.toggle("ready", isMyTurn || complete);
-        document.querySelector("#turn-warning-title").textContent = complete ? "ROUND COMPLETE"
-          : isMyTurn ? "YOUR TURN" : "WAIT FOR YOUR TURN";
         document.querySelector("#turn-warning-copy").textContent = complete
           ? "This round has ended. Choose Play again above to start another round."
           : isMyTurn ? `Sign ${target[accepted.length]} and hold for 1.5 seconds, or use manual input.`
