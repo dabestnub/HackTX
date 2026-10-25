@@ -12,3 +12,7 @@ services:
         value: production
       - key: META_MUSE_API_KEY
         sync: false
+      - key: FACEBOOK_APP_ID
+        sync: false
+      - key: FACEBOOK_APP_SECRET
+        sync: false
