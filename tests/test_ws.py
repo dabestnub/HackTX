@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from server.app import Hub, create_app
+from server.app import FRAME_GAP, Hub, create_app
 from server.classifier import LETTERS
 from server.config import Settings
 from server.game import Phase
@@ -166,7 +166,7 @@ def test_newest_frame_is_bounded_throttled_and_cpu_runs_off_loop():
             rec.release.set()
             await eventually(lambda: len(rec.calls) == 2)
             assert [call[0] for call in rec.calls] == [b"R", b"C"]
-            assert rec.calls[1][1] - rec.calls[0][1] >= 0.095
+            assert rec.calls[1][1] - rec.calls[0][1] >= FRAME_GAP - 0.005
             assert all(call[2] != threading.get_ident() for call in rec.calls)
         finally:
             rec.release.set()
@@ -415,6 +415,9 @@ def test_muse_timeout_falls_back_and_does_not_leave_tasks(kind, monkeypatch):
             await asyncio.wait_for(hub.generate(live, GenerateImage(1, "RED CAT"), 0), 0.5)
             assert live.room.score == 100
             assert live.images["1"][1] == "image/svg+xml"
+            assert live.room.phase is Phase.REVEAL  # the placeholder shows, then the game moves on by itself
+            live.room.tick(live.room.deadline)
+            assert live.room.phase is Phase.COUNTDOWN
         await hub.shutdown()
         assert not live.tasks
     asyncio.run(scenario())

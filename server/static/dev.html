@@ -54,6 +54,7 @@ let ws = null, session = null, me = 0, phase = "", paused = false, ready = false
 let words = {}, progress = {}, endsAt = 0, encoding = false;
 let starting = false, retryTimer = null, expiryTimer = null, retryUntil = 0, pausedUntil = 0;
 let captureEpoch = 0, lastSent = -Infinity;
+const FRAME_GAP = 50; // ms between sent frames: at most 20 per second (Q16)
 
 function log(m) {
   // Keep the rejoin credential out of the visible debug log.
@@ -128,7 +129,7 @@ function connect(first) {
 
 async function startCamera() {
   if (!navigator.mediaDevices?.getUserMedia) throw new Error("Camera unavailable. Open this page on HTTPS or localhost.");
-  if (!video.srcObject) video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+  if (!video.srcObject) video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, frameRate: { ideal: 30 } }, audio: false });
   await video.play();
 }
 
@@ -242,12 +243,13 @@ function handle(m) {
   }
 }
 
-// Raw, unmirrored frames, at most 640x480 and 10 per second, only while signing (Q16)
+// Raw, unmirrored frames, at most 640x480 and 20 per second, only while signing (Q16)
 function canCapture() {
   return phase === "signing" && !paused && ws?.readyState === WebSocket.OPEN && !ws.bufferedAmount
-    && endsAt > performance.now() && performance.now() - lastSent >= 100;
+    && endsAt > performance.now() && performance.now() - lastSent >= FRAME_GAP;
 }
 
+// Poll every 10 ms: polling at FRAME_GAP made the encode delay skip every other tick, halving the rate.
 setInterval(() => {
   if (!canCapture() || encoding || !video.videoWidth || !video.videoHeight) return;
   const socket = ws, epoch = captureEpoch;
@@ -263,7 +265,7 @@ setInterval(() => {
       }
     }, "image/jpeg", 0.7);
   } catch (error) { encoding = false; stop(`Camera capture failed: ${error.message}`); }
-}, 100);
+}, 10);
 
 setInterval(drawTimer, 100);
 

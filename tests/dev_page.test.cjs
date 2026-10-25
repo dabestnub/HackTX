@@ -145,22 +145,28 @@ test('terminal server errors and room closure stop retries and remain visible', 
   }
 });
 
-test('JPEG capture preserves raw aspect ratio, one encoder, 10fps, and backpressure', async () => {
+test('JPEG capture preserves raw aspect ratio, one encoder, 20fps, and backpressure', async () => {
   const b = browser(), socket = await b.joined();
   b.elements.video.onloadedmetadata();
   assert.equal(b.elements.stage.style.aspectRatio, '1280 / 720');
-  b.advance(100);
+  b.advance(10);
   assert.equal(b.blobs.length, 1);
   assert.equal(b.blobs[0].type, 'image/jpeg');
   assert.deepEqual(b.draws[0].slice(1), [0, 0, 640, 360]);
   b.advance(99);
-  assert.equal(b.blobs.length, 1);
-  const jpeg = { size: 1000 };
-  b.blobs[0].callback(jpeg);
+  assert.equal(b.blobs.length, 1, 'one encoder at a time');
+  const jpeg = { size: 1000 }, sends = () => socket.sent.filter((v) => v === jpeg).length;
+  b.blobs[0].callback(jpeg); // a delayed encode sends at t=109
+  assert.equal(sends(), 1);
+  b.advance(50);
+  assert.equal(b.blobs.length, 1, 'no burst after a delayed encode');
   b.advance(1);
-  assert.equal(socket.sent.filter((v) => v === jpeg).length, 1);
-  if (b.blobs[1]) b.blobs[1].callback(jpeg);
-  assert.equal(socket.sent.filter((v) => v === jpeg).length, 1, 'no burst after a delayed encode');
+  assert.equal(b.blobs.length, 2, 'the next frame waits exactly 50 ms');
+  const encoded = new Set();
+  const encodeNow = () => { const last = b.blobs.at(-1); if (!encoded.has(last)) { encoded.add(last); last.callback(jpeg); } };
+  encodeNow();
+  for (let i = 0; i < 100; i++) { b.advance(10); encodeNow(); }
+  assert.equal(sends(), 2 + 20, 'a fast encoder sends 20 frames per second, not every other poll');
   socket.bufferedAmount = 1000;
   const count = b.blobs.length;
   b.advance(500);

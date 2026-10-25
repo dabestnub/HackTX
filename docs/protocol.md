@@ -20,7 +20,7 @@ Run exactly one Fly machine and one backend process/worker: all rooms, tokens, i
 1. Open the socket. The first message must be `create_room`, `join_room`, or `rejoin`.
 2. The server answers with `room_joined`. Store `room` and `token`.
 3. Both players send `ready`. A 3-second `countdown` starts.
-4. `round_start` gives each player a word. The phase becomes `signing`, and the team has 10 seconds in total to finish both words.
+4. `round_start` gives each player a word. The phase becomes `signing`, and the team has 15 seconds in total to finish both words.
 5. While signing, send camera frames as binary messages. You get a `recognition` for each processed frame, and both players get a `progress` each time a letter is accepted.
 6. When both words are done, everyone gets `image_pending`, then `image_ready` and `round_complete` (+100 points). Below 500 points, the image shows for 5 seconds, then the next countdown starts. The final image goes directly to `game_over`.
 7. On timeout, everyone gets `round_failed` (0 points) and a new countdown with a fresh pair starts.
@@ -32,9 +32,9 @@ Phases, as sent in `room_state.phase`: `lobby`, `countdown`, `signing`, `generat
 
 - One JPEG image per binary WebSocket message.
 - Send the **raw, unmirrored** camera image. Mirror only your on-screen preview (CSS `transform: scaleX(-1)`).
-- At most 640 pixels wide and 480 high, at most **300,000 bytes** (exactly 300,000 is allowed), at most 10 frames per second. JPEG quality 0.7 is plenty. These are decimal bytes, not 300 KiB.
+- At most 640 pixels wide and 480 high, at most **300,000 bytes** (exactly 300,000 is allowed), at most 20 frames per second. JPEG quality 0.7 is plenty. These are decimal bytes, not 300 KiB.
 - Send frames only while `phase` is `signing`, `paused` is false, and your word is unfinished. The server ignores frames outside these conditions or after the round deadline.
-- The server retains only the newest waiting frame per player and processes at most 10 per second. Frames can be dropped, so do not expect one reply per sent frame. Also avoid building a browser-side send backlog (`ws.bufferedAmount`).
+- The server retains only the newest waiting frame per player and processes at most 20 per second. Frames can be dropped, so do not expect one reply per sent frame. Also avoid building a browser-side send backlog (`ws.bufferedAmount`).
 
 ```js
 canvas.width = 640; canvas.height = 480;
@@ -47,7 +47,7 @@ canvas.toBlob((blob) => {
 }, "image/jpeg", 0.7);
 ```
 
-Capture at intervals of at least 100 ms. Do not flip or transform the canvas context; mirror the preview only.
+Leave at least 50 ms between sends. Do not flip or transform the canvas context; mirror the preview only.
 
 ## Client to server (JSON text)
 
@@ -84,18 +84,18 @@ Keep `token` for `rejoin`. `slot` is 1 or 2.
 `round_start`, sent to each player with their own `your_word`:
 ```json
 {"type":"round_start","round":2,"phrase":"BIG DOG","words":[{"slot":1,"word":"DOG"},{"slot":2,"word":"BIG"}],
- "your_word":"DOG","time_limit":10.0}
+ "your_word":"DOG","time_limit":15.0}
 ```
 Words are 3 to 5 uppercase letters, never J or Z. Slot 1 signs the adjective on odd rounds and the noun on even rounds; slot 2 signs the other word. The phrase always stays adjective then noun. Server validation avoids words already used in the current game; after exhausting the built-in fallback pool, fallback words may repeat.
 
-`recognition`, sent only to the signer, once per processed frame (up to 10 per second):
+`recognition`, sent only to the signer, once per processed frame (up to 20 per second):
 ```json
 {"type":"recognition","guess":"D","confidence":0.93,"hold":0.5,"accepted":false,"expected":"D",
  "landmarks":null}
 ```
 - `guess` is the model's top letter, or `null` when no hand is seen. `confidence` runs from 0 to 1.
 - `expected` is the letter evaluated for this frame, including when `accepted` is true; use `progress.done` to advance the word UI. J and Z are masked from guesses, and confidence is the raw softmax value without renormalizing.
-- A letter is accepted when `guess` equals `expected` with confidence of at least 0.8, held for 0.6 seconds. `hold` is that hold's progress, from 0 to 1. Wrong letters carry no penalty. No hand, a wrong guess, or confidence below 0.8 resets the hold.
+- A letter is accepted when `guess` equals `expected` with confidence of at least 0.7, held for 0.6 seconds. `hold` is that hold's progress, from 0 to 1. Wrong letters carry no penalty. No hand, a wrong guess, or confidence below 0.7 resets the hold.
 - For a double letter such as BOOK, keep holding. The second O needs its own full hold.
 - `landmarks` holds 21 `[x, y]` points from 0 to 1, or `null`. They are already in the mirrored view, so draw them directly over a mirrored preview: `px = x * width`, `py = y * height`. They use MediaPipe's hand order (0 is the wrist, 4 the thumb tip, 8 the index fingertip). Bones:
   `[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]]`

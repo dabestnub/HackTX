@@ -7,7 +7,7 @@ from server.classifier import LETTERS
 from server.config import Settings
 from server.game import CloseRoom, FetchPair, GenerateImage, Phase, Room, Send
 
-S = Settings(api_key=None)
+S = Settings(api_key=None, time_limit=10.0)  # the timelines below assume a 10 s round
 
 
 def sent(outs, kind, to="any"):

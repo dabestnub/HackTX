@@ -22,7 +22,7 @@ from .game import CloseRoom, FetchPair, GenerateImage, Phase, Room, Send
 log = logging.getLogger(__name__)
 STATIC = Path(__file__).resolve().parent / "static"
 TICK = 0.1
-FRAME_GAP = 0.1
+FRAME_GAP = 0.05  # at most 20 recognitions per second per player (Q16)
 
 
 def error_msg(code: str, message: str) -> dict:

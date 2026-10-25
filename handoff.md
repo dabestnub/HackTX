@@ -33,7 +33,7 @@ Out of scope: the real frontend UI (built by a teammate), accounts, persistence,
 3. Both players ready up.
 4. The server gets an adjective and noun pair, and each player gets one word.
 5. Each player signs their word one letter at a time. The classifier checks each letter. Wrong signs are ignored, with no penalty.
-6. Each round has a 10-second limit. Both players must finish signing their whole word before it runs out, or the round ends with 0 points and a new pair starts (Q13).
+6. Each round has a 15-second limit. Both players must finish signing their whole word before it runs out, or the round ends with 0 points and a new pair starts (Q13).
 7. When both words are complete, Muse generates an image of the merged phrase. Both players wait for it to load.
 8. The team earns 100 points.
 9. The loop repeats until the team score reaches 500. The game then shows the image gallery and offers to play again.
@@ -45,7 +45,7 @@ Out of scope: the real frontend UI (built by a teammate), accounts, persistence,
 | Q1 | **Recognition runs on the server.** The browser sends camera frames as JPEG images over a secure WebSocket. The server decodes them with OpenCV, runs MediaPipe, then runs the classifier. The user chose this option. One concern was raised: browsers grant camera access only on HTTPS or localhost under every option, and fly.io serves HTTPS for any of them, so HTTPS does not by itself favor this option. Sending frames costs more server CPU and bandwidth than sending landmarks. The user may revisit this. |
 | Q2 | **Game state lives in memory on exactly one fly.io machine.** No Redis. Run `fly scale count 1`, because `fly launch` creates two machines by default and would split the players. |
 | Q3 | **Each completed word pair is worth a flat 100 points.** The team wins at 500, which is five successful rounds. |
-| Q4 | **Wrong signs carry no penalty.** The player keeps trying until they sign the correct letter or the time limit runs out. The limit is 10 seconds per round for the whole word (Q13). The user did not ask for a skip button, so the timer is what gets players unstuck. |
+| Q4 | **Wrong signs carry no penalty.** The player keeps trying until they sign the correct letter or the time limit runs out. The limit is 15 seconds per round for the whole word (Q13). The user did not ask for a skip button, so the timer is what gets players unstuck. |
 | Q5 | **Players wait for each image** before the next round starts. |
 | Q6 | **Generated words never contain J or Z.** Both letters are signed with motion, which a single-frame classifier cannot see. |
 | Q7 | **Words come from Muse and are validated by the server.** Muse returns an adjective and a noun as structured JSON. The server checks that each word uses only the letters A to Z, is **3 to 5** letters long (the user lowered the cap from 7 to 5 in round 2), contains no J or Z, and has not been used earlier in the game. If Muse fails or is slow, the server uses a built-in list of about 50 pairs. The next pair is fetched during the current round. Players swap between the adjective and the noun each round. |
@@ -135,7 +135,7 @@ LOBBY (0-2 players, ready flags)
        both words complete -> GENERATING_IMAGE (players wait, Q5)
                            -> REVEAL (score += 100)
                            -> score >= 500 ? GAME_OVER : COUNTDOWN
-       10 s round limit hit -> ROUND_FAILED (0 points) -> COUNTDOWN with a new pair (Q13)
+       15 s round limit hit -> ROUND_FAILED (0 points) -> COUNTDOWN with a new pair (Q13)
 GAME_OVER -> play again -> LOBBY or COUNTDOWN with score reset
 A disconnect pauses the room for 30 s (Q8). If the player does not return, the room ends.
 ```
@@ -184,10 +184,10 @@ Server to client:
 
 | # | Decision |
 |---|---|
-| Q13 | **One 10-second limit per round, for the whole word.** Both players must finish their word before it runs out. A timeout gives 0 points and starts a fresh pair. Words are 3 to 5 letters, so 5 holds of 0.6 s fit. |
-| Q14 | **A letter is accepted when the expected letter is the top prediction with confidence of at least 0.8, held for 0.6 s.** A frame with no hand, a different guess, or lower confidence resets the hold. J and Z are masked out of the prediction. |
+| Q13 | **One 15-second limit per round, for the whole word.** (Raised from 10 s by the user on 2026-10-24.) Both players must finish their word before it runs out. A timeout gives 0 points and starts a fresh pair. Words are 3 to 5 letters, so 5 holds of 0.6 s fit. |
+| Q14 | **A letter is accepted when the expected letter is the top prediction with confidence of at least 0.7, held for 0.6 s.** (Lowered from 0.8 by the user on 2026-10-24 after trying real signing.) A frame with no hand, a different guess, or lower confidence resets the hold. J and Z are masked out of the prediction. |
 | Q15 | **Repeated letters** (BOOK) are accepted by holding through a second full hold. There is no need to lower the hand. |
-| Q16 | **Frames are raw, unmirrored JPEGs of at most 640x480, at most 10 per second.** The server keeps only the newest frame per player and flips it as `app.py` does. |
+| Q16 | **Frames are raw, unmirrored JPEGs of at most 640x480, at most 20 per second.** (Raised from 10 by the user on 2026-10-24.) The server keeps only the newest frame per player and flips it as `app.py` does. |
 | Q17 | **The signer gets their guess, confidence, hold progress, and 21 landmark points** for each processed frame. Both players see each other's letter progress. |
 | Q18 | **The classifier runs in numpy** with BatchNorm folded into the linear layers. Torch is used only by the one-time export script, which also writes the parity fixture the tests use. |
 | Q19 | **Images come back as base64**, are held in room memory, and are served at a URL announced over the WebSocket. If generation fails or takes over **10 seconds**, a placeholder showing the phrase is used. Requests use `reasoning_strength="low"` with web and image search off. |
@@ -200,11 +200,11 @@ Other facts from round 2: the user has run the repo's app and it works. They hav
 ## 13. Risks
 
 - **Model rights.** The repo has no license, so by default the author keeps all rights to its code and weights. The user chose to ignore this for now. Asking the author, or retraining on the public dataset, are the remedies.
-- **New signers.** The user ran the repo's app and it works for them. Accuracy for other signers and lighting is still unmeasured, and the 0.8 confidence bar may need tuning after the first camera test.
-- **Server CPU.** Running MediaPipe on fly.io for two players at 10 frames per second each needs measuring. Frame dropping keeps latency bounded.
+- **New signers.** The user ran the repo's app and it works for them. Accuracy for other signers and lighting is still unmeasured, and the confidence bar was lowered from 0.8 to 0.7 after the first camera test and may need more tuning.
+- **Server CPU.** Running MediaPipe on fly.io for two players at 20 frames per second each needs measuring. Frame dropping keeps latency bounded.
 - **Image waits.** Players wait for every image, and image latency is undocumented. The 10-second placeholder fallback in Q19 limits the damage.
 - **Muse cost.** Muse needs a paid key with no confirmed free tier. Costs are tiny at one cent per image.
-- **Timer pressure.** 10 seconds for a 5-letter word leaves 7 seconds of slack beyond the 3 seconds of holds. Tune `TIME_LIMIT` after the first camera test if needed.
+- **Timer pressure.** 15 seconds for a 5-letter word leaves 12 seconds of slack beyond the 3 seconds of holds. Tune `time_limit` in `server/config.py` if needed.
 
 ## 14. Build order
 
@@ -242,7 +242,7 @@ Final integration: 78 Python tests pass (32.34 s), with one upstream FastAPI/Sta
 
 Decisions made during the build, beyond the interview answers:
 - After an image appears, it shows for 5 seconds (`reveal`) before the next 3-second countdown. Both values are in `server/config.py`.
-- J and Z are masked by zeroing their probabilities. The confidence compared with 0.8 is the raw softmax value, not renormalized.
+- J and Z are masked by zeroing their probabilities. The confidence compared with `min_confidence` (0.7) is the raw softmax value, not renormalized.
 - The fallback lists hold 29 adjectives and 40 nouns. If a game uses every fallback word (29 or more rounds, possible with many timeouts), words repeat instead of the game stopping.
 - `words.normalize` returns an empty string for anything that is not a string, so a null word from Muse is rejected instead of becoming "NONE".
 - Frames over 640x480 pixels are refused before decoding (`OPENCV_IO_MAX_IMAGE_PIXELS`), so a small JPEG that claims a huge size cannot exhaust memory.
@@ -254,4 +254,7 @@ Decisions made during the build, beyond the interview answers:
 - The Windows copy contained a truncated hand model and two corrupt Git model objects. The exact original model was restored from upstream commit `9de5b22` (7,819,105 bytes, tracked Git blob `0d53faf3786146e95c5bc010c48029ff16b7fa59`); the classifier's existing bytes already matched its tracked hash. Backups are in `.cache/copy-recovery-backup`. Three empty invalid remote-tracking refs were backed up and removed; local history is intact and `git fsck` passes.
 - The copied `.venv` belongs to Linux and was preserved. Windows validation uses Docker with Python 3.12 and dependencies synchronized from `uv.lock`. The production image needs `libegl1` and `libgles2` in addition to `libgl1` and `libglib2.0-0`; real blank-frame recognition passes in the built image.
 - To try the camera page locally with Docker: `docker build -t asl-coop:dev .`, then `docker run --rm -p 18080:8080 asl-coop:dev` and open `http://localhost:18080/dev` in two tabs. The keyless mode uses fallback words and placeholder images. This still requires real signing; there is no typed-letter mode.
-- Remaining manual checks: real-hand recognition and a two-player camera game, authenticated Muse requests, and deployment/HTTPS/CPU validation on Fly. The Vercel frontend remains the teammate's work.
+- Deployed 2026-10-24 to the Fly app `asl-coop-backend` (personal org; one shared-cpu-2x 2 GB machine in dfw) at https://asl-coop-backend.fly.dev. The Muse key is the Fly secret `MODEL_API_KEY`; the local `.env` names it `MODEL_MUSE_KEY`, so export it under the server's name for local runs. Verified over HTTPS: `/healthz`, `/dev`, an HTTP-to-HTTPS redirect, a two-player `wss://` round start, blank-frame recognition (about 30 ms round trip), and authenticated Muse calls from the machine (word pair 3.6 s, image 7.5 s, close to the 10 s cutoff). Redeploy with `fly deploy --ha=false`; every deploy or secret change restarts the machine and drops all rooms.
+- The `/dev` page polls the camera every 10 ms and sends a frame once 50 ms have passed since the last send. It used to poll every 100 ms with a 100 ms gap, so the encode delay skipped every other poll and frames went out at about 5 per second.
+- If an image is not back within 10 seconds, the placeholder takes its place and the game moves on by itself: 100 points, the usual 5-second reveal, then the next countdown. A regression test covers this.
+- Remaining manual checks: real-hand recognition across signers and a full two-player camera game, plus CPU with two players at 20 frames per second each. The Vercel frontend remains the teammate's work.

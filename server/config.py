@@ -9,9 +9,9 @@ MODELS = Path(__file__).resolve().parent.parent / "models"
 class Settings:
     """Game and server tunables. Tests pass faster values; production uses the defaults."""
 
-    time_limit: float = 10.0       # seconds per round for the whole word (Q13)
+    time_limit: float = 15.0       # seconds per round for the whole word (Q13)
     hold_seconds: float = 0.6      # Q14
-    min_confidence: float = 0.8    # Q14
+    min_confidence: float = 0.7    # Q14
     countdown: float = 3.0
     reveal: float = 5.0            # seconds an image shows before the next countdown
     reconnect_grace: float = 30.0  # Q8
