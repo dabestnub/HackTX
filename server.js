@@ -64,13 +64,33 @@ function randomCode() {
 }
 
 function pickWords(previous = []) {
-  const pool = WORDS.filter((word) => !previous.includes(word));
-  const picked = [];
-  while (picked.length < WORDS_PER_ROUND) {
-    const choices = pool.filter((word) => !picked.includes(word));
-    picked.push(choices[crypto.randomInt(choices.length)]);
+  const previousSet = new Set(previous);
+  const pool = WORDS.filter((word) => !previousSet.has(word));
+  const buckets = new Map();
+  for (const word of pool) {
+    const length = word.length;
+    if (!buckets.has(length)) buckets.set(length, []);
+    buckets.get(length).push(word);
   }
-  return picked;
+  let eligibleBuckets = [...buckets.values()].filter((words) => words.length >= WORDS_PER_ROUND);
+
+  // Fallback for tiny custom word lists: if exclusions leave no same-length pair,
+  // allow previously used words so gameplay can continue.
+  if (!eligibleBuckets.length) {
+    const allBuckets = new Map();
+    for (const word of WORDS) {
+      const length = word.length;
+      if (!allBuckets.has(length)) allBuckets.set(length, []);
+      allBuckets.get(length).push(word);
+    }
+    eligibleBuckets = [...allBuckets.values()].filter((words) => words.length >= WORDS_PER_ROUND);
+  }
+
+  const bucket = eligibleBuckets[crypto.randomInt(eligibleBuckets.length)];
+  const first = bucket[crypto.randomInt(bucket.length)];
+  const remaining = bucket.filter((word) => word !== first);
+  const second = remaining[crypto.randomInt(remaining.length)];
+  return [first, second];
 }
 
 function makeRoom() {
