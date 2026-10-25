@@ -26,7 +26,6 @@ const IMAGE_MODEL = process.env.META_MUSE_MODEL || "muse-image-1.0";
 const IMAGE_SIZE = process.env.META_MUSE_SIZE || "1024x1024";
 const IMAGE_TIMEOUT_MS = Number(process.env.IMAGE_TIMEOUT_MS || 120_000);
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
-const MAX_IMAGES_PER_ROOM = 4;
 const MAX_IMAGES_IN_FLIGHT = 3;
 const MAX_IMAGES_PER_MINUTE = 20;
 const GENERATED_PATH = /^\/generated\/([0-9a-f]{32})$/;
@@ -47,6 +46,7 @@ const rooms = new Map();
 const sockets = new Map();
 const images = new Map();
 let imageJobsInFlight = 0;
+let hintJobsInFlight = 0;
 const imageStarts = [];
 
 function randomCode() {
@@ -54,7 +54,7 @@ function randomCode() {
   return Array.from(crypto.randomBytes(6), (byte) => alphabet[byte % alphabet.length]).join("");
 }
 
-function makeRoom(targetScore, roundDuration = ROUND_SECONDS) {
+function makeRoom(targetScore, roundDuration = ROUND_SECONDS, showPartner = true) {
   let code;
   do {
     code = randomCode();
@@ -74,6 +74,9 @@ function makeRoom(targetScore, roundDuration = ROUND_SECONDS) {
     remainingMs: roundDuration * 1000,
     completedReason: null,
     pendingRematch: null,
+    showPartner,
+    gameId: 1,
+    pictures: [],
     picture: null,
     pictureJob: null,
     imageIds: [],
@@ -106,7 +109,16 @@ function pickWords(previous = []) {
   return [first, secondChoices[crypto.randomInt(secondChoices.length)]];
 }
 
-function roomSnapshot(room) {
+function roomSnapshot(room, slot) {
+  const privateWords = (words) => words.map((word, index) => room.showPartner || index === slot ? word : "");
+  const pictureSnapshot = (picture) => {
+    if (!picture) return null;
+    const guess = picture.guesses?.[slot] ?? null;
+    return { round: picture.round, url: picture.url, status: picture.status, message: picture.message,
+      words: room.showPartner || guess === picture.words[1 - slot] ? picture.words : privateWords(picture.words),
+      hint: picture.hints?.[slot] ?? null,
+      guess, correct: guess === null ? null : guess === picture.words[1 - slot] };
+  };
   const secondsRemaining = room.status === "playing"
     ? Math.max(0, Math.ceil((room.deadline - Date.now()) / 1000))
     : Math.ceil(room.remainingMs / 1000);
@@ -117,21 +129,25 @@ function roomSnapshot(room) {
       name: player.name,
       connected: player.connected,
       aslReady: player.aslReady,
+      manualReady: player.manualReady,
       videoSharing: player.videoReady,
       rematchReady: player.rematchReady,
     })),
     pendingRematch: room.pendingRematch,
     round: room.round,
-    words: room.words,
-    letters: room.letters,
+    showPartner: room.showPartner,
+    gameId: room.gameId,
+    words: privateWords(room.words),
+    letters: privateWords(room.letters),
     score: room.score,
     targetScore: room.targetScore,
     roundDuration: room.roundDuration,
     wordsCompleted: room.wordsCompleted,
     secondsRemaining,
     completedReason: room.completedReason,
-    picture: room.picture,
-    pictureJob: room.pictureJob,
+    pictures: room.pictures.map(pictureSnapshot),
+    picture: pictureSnapshot(room.picture),
+    pictureJob: pictureSnapshot(room.pictureJob),
   };
 }
 
@@ -140,9 +156,17 @@ function send(socket, payload) {
 }
 
 function broadcast(room, type, extra = {}) {
-  const message = { type, room: roomSnapshot(room), ...extra };
   for (const player of room.players) {
-    if (player?.socket) send(player.socket, message);
+    if (!player?.socket) continue;
+    const details = { ...extra };
+    if (!room.showPartner) {
+      delete details.completedWords;
+      if (details.slot !== player.slot) {
+        delete details.accepted;
+        delete details.completedWord;
+      }
+    }
+    send(player.socket, { type, room: roomSnapshot(room, player.slot), ...details });
   }
 }
 
@@ -152,7 +176,7 @@ function startRoom(room) {
     room.status = "ready";
     broadcast(room, "room:updated");
   }
-  if (room.status !== "ready" || !room.players.every((player) => player.aslReady && player.videoReady)) return;
+  if (room.status !== "ready" || !room.players.every((player) => (player.aslReady || player.manualReady) && (!room.showPartner || player.videoReady))) return;
   room.status = "playing";
   room.deadline = Date.now() + room.remainingMs;
   broadcast(room, "game:started");
@@ -171,6 +195,7 @@ function attachPlayer(socket, room, slot, name, reconnectToken = null) {
     reconnectToken: token,
     connected: true,
     aslReady: false,
+    manualReady: false,
     videoReady: false,
     rematchReady: false,
     socket,
@@ -180,7 +205,7 @@ function attachPlayer(socket, room, slot, name, reconnectToken = null) {
   sockets.set(socket, { room, slot });
   send(socket, {
     type: "room:joined",
-    room: roomSnapshot(room),
+    room: roomSnapshot(room, slot),
     player: { slot, token, name },
   });
   broadcast(room, "room:updated");
@@ -235,6 +260,11 @@ function handleRestart(socket, message) {
   room.remainingMs = room.roundDuration * 1000;
   room.deadline = null;
   room.completedReason = null;
+  room.gameId += 1;
+  forgetImages(room);
+  room.pictures = [];
+  room.picture = null;
+  room.pictureJob = null;
   // Keep prior action IDs so delayed submissions cannot count in the new round.
   broadcast(room, "room:updated");
   startRoom(room);
@@ -248,7 +278,9 @@ function handleCreate(socket, message) {
   if (!validTargetScore(targetScore)) return fail(socket, "Choose a points target from 100 to 5000 in steps of 25.");
   const roundDuration = message.roundDuration ?? ROUND_SECONDS;
   if (!validRoundDuration(roundDuration)) return fail(socket, "Choose a round duration of 1, 2, 3, or 5 minutes.");
-  attachPlayer(socket, makeRoom(targetScore, roundDuration), 0, name);
+  const showPartner = message.showPartner ?? true;
+  if (typeof showPartner !== "boolean") return fail(socket, "Choose whether to see your partner.");
+  attachPlayer(socket, makeRoom(targetScore, roundDuration, showPartner), 0, name);
 }
 
 function handleJoin(socket, message) {
@@ -366,7 +398,6 @@ function storeImage(room, image) {
   const id = crypto.randomBytes(16).toString("hex");
   images.set(id, image);
   room.imageIds.push(id);
-  while (room.imageIds.length > MAX_IMAGES_PER_ROOM) images.delete(room.imageIds.shift());
   return id;
 }
 
@@ -385,7 +416,8 @@ function reserveImageSlot() {
   imageJobsInFlight += 1;
 }
 
-async function runPictureJob(room, round, words) {
+async function runPictureJob(room, picture, gameId) {
+  const { round, words } = picture;
   let imageId = null;
   let failure = null;
   try {
@@ -396,6 +428,7 @@ async function runPictureJob(room, round, words) {
     } finally {
       imageJobsInFlight -= 1;
     }
+    if (rooms.get(room.code) !== room || room.gameId !== gameId) return;
     imageId = storeImage(room, image);
   } catch (error) {
     if (error instanceof ImageError) failure = error.message;
@@ -404,25 +437,83 @@ async function runPictureJob(room, round, words) {
       failure = "The picture service couldn't be reached.";
     }
   }
-  if (rooms.get(room.code) !== room) {
-    if (imageId) images.delete(imageId);
-    return;
-  }
-  if (imageId && (!room.picture || round > room.picture.round)) {
-    room.picture = { round, words, url: `/generated/${imageId}` };
-    if (room.pictureJob?.round === round) room.pictureJob = null;
-  } else if (imageId) {
-    images.delete(imageId);
-    room.imageIds = room.imageIds.filter((id) => id !== imageId);
-  } else if (room.pictureJob?.round === round) {
-    room.pictureJob = { round, words, status: "error", message: failure };
+  if (rooms.get(room.code) !== room || room.gameId !== gameId) return;
+  picture.status = imageId ? "ready" : "error";
+  picture.message = failure;
+  if (imageId) {
+    picture.url = `/generated/${imageId}`;
+    if (!room.picture || round > room.picture.round) room.picture = picture;
+    if (room.pictureJob === picture) room.pictureJob = null;
   }
   broadcast(room, "picture:updated");
 }
 
 function startPictureJob(room, round, words) {
-  room.pictureJob = { round, words, status: "pending", message: null };
-  runPictureJob(room, round, words).catch((error) => console.error("Picture job crashed:", error));
+  const picture = { round, words, status: "pending", message: null, guesses: [null, null], hints: [null, null] };
+  room.pictures.push(picture);
+  room.pictureJob = picture;
+  runPictureJob(room, picture, room.gameId).catch((error) => console.error("Picture job crashed:", error));
+}
+
+async function requestHint(word) {
+  const apiKey = process.env.META_MUSE_API_KEY;
+  if (!apiKey) throw new Error("Hint service is not configured.");
+  const response = await fetch("https://api.meta.ai/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "muse-spark-1.3",
+      messages: [
+        { role: "developer", content: "Write one short, family-friendly clue for a word guessing game. Describe the word in at most 25 words. Never say the word, spell it out, or include its derivatives. Return only the clue." },
+        { role: "user", content: `The secret word is ${word}.` },
+      ],
+    }),
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!response.ok) throw new Error(`Hint API returned ${response.status}.`);
+  const hint = (await response.json())?.choices?.[0]?.message?.content;
+  if (typeof hint !== "string" || !hint.trim() || hint.length > 500 || hint.toUpperCase().includes(word)) {
+    throw new Error("Hint service returned an unusable clue.");
+  }
+  return hint.trim();
+}
+
+async function generateHint(room, picture, slot, gameId) {
+  let hint;
+  try {
+    if (hintJobsInFlight >= 3) throw new Error("Hint service is busy.");
+    hintJobsInFlight += 1;
+    try {
+      hint = { status: "ready", text: await requestHint(picture.words[1 - slot]) };
+    } finally {
+      hintJobsInFlight -= 1;
+    }
+  } catch {
+    hint = { status: "error", text: "The hint service is unavailable. You can still try another guess." };
+  }
+  if (rooms.get(room.code) !== room || room.gameId !== gameId) return;
+  picture.hints[slot] = hint;
+  const player = room.players[slot];
+  if (player?.socket) send(player.socket, { type: "guess:result", room: roomSnapshot(room, slot) });
+}
+
+function handleGuess(socket, message) {
+  const membership = sockets.get(socket);
+  if (!membership) return fail(socket, "Join a room before guessing.");
+  const { room, slot } = membership;
+  if (room.showPartner || room.status !== "complete") return fail(socket, "Guessing is available after a hidden game ends.");
+  const picture = room.pictures.find((entry) => entry.round === message.round);
+  if (!picture?.url) return fail(socket, "Wait for this picture before guessing.");
+  if (typeof message.guess !== "string" || !/^[a-zA-Z]{1,24}$/.test(message.guess.trim())) {
+    return fail(socket, "Enter a word of up to 24 letters.");
+  }
+  if (picture.guesses[slot] === picture.words[1 - slot]) return;
+  picture.guesses[slot] = message.guess.trim().toUpperCase();
+  if (picture.guesses[slot] !== picture.words[1 - slot] && !picture.hints[slot]) {
+    picture.hints[slot] = { status: "pending" };
+    generateHint(room, picture, slot, room.gameId);
+  }
+  send(socket, { type: "guess:result", room: roomSnapshot(room, slot) });
 }
 
 function completeRound(room) {
@@ -450,7 +541,7 @@ function handleLetter(socket, message) {
     return fail(socket, "Invalid action identifier.");
   }
   if (room.actionIds.has(message.actionId)) {
-    send(socket, { type: "room:updated", room: roomSnapshot(room) });
+    send(socket, { type: "room:updated", room: roomSnapshot(room, slot) });
     return;
   }
   if (typeof message.letter !== "string" || !/^[A-Z]$/.test(message.letter)) {
@@ -482,6 +573,7 @@ function handleVideoReady(socket) {
   const membership = sockets.get(socket);
   if (!membership) return fail(socket, "Join a room before enabling video sharing.");
   const { room, slot } = membership;
+  if (!room.showPartner) return fail(socket, "Video sharing is disabled in hidden mode.");
   const player = room.players[slot];
   if (!player?.connected) return fail(socket, "Your room connection is not ready.");
   player.videoReady = true;
@@ -510,7 +602,7 @@ function handleVideoSignal(socket, message) {
   const player = room.players[slot];
   const peer = room.players[1 - slot];
   const signal = message.signal;
-  if (!player?.videoReady || !peer?.connected || !peer.videoReady) {
+  if (!room.showPartner || !player?.videoReady || !peer?.connected || !peer.videoReady) {
     return fail(socket, "Both players must enable video sharing first.");
   }
   if (!signal || typeof signal !== "object" || Array.isArray(signal)) {
@@ -555,6 +647,15 @@ function handleMessage(socket, message) {
       return handleLetter(socket, message);
     case "video:ready":
       return handleVideoReady(socket);
+    case "manual:ready": {
+      const membership = sockets.get(socket);
+      if (!membership || typeof message.ready !== "boolean") return fail(socket, "Join a room and choose manual input.");
+      const { room, slot } = membership;
+      room.players[slot].manualReady = message.ready;
+      broadcast(room, "room:updated");
+      if (message.ready) startRoom(room);
+      return;
+    }
     case "asl:ready":
       return handleAslReady(socket, true);
     case "asl:stop":
@@ -574,6 +675,8 @@ function handleMessage(socket, message) {
       broadcast(room, "room:updated");
       return;
     }
+    case "picture:guess":
+      return handleGuess(socket, message);
     case "game:restart":
       return handleRestart(socket, message);
     case "game:leave": {

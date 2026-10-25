@@ -181,7 +181,7 @@ test("two players complete separate words, share video, and confirm a rematch", 
         if (state.status === "complete") break;
         const letter = words[slot][state.letters[slot].length];
         if (!firstWordChecked && slot === 0 && index === 0) {
-          const wrongLetter = letter === "A" ? "B" : "A";
+          const wrongLetter = words[1][0] === "A" ? "B" : "A";
           send(partner, { type: "letter:confirm", actionId: "00000000000000ff", letter: wrongLetter });
           assert.match((await partner.next((message) => message.type === "error")).message, /does not match/i);
           firstWordChecked = true;
