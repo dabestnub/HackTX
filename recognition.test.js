@@ -13,20 +13,32 @@ function loadHelper(name, context) {
   return context[name];
 }
 
-test('hold takes 1500 ms and resets on changed signs, missing hands, and frame gaps', () => {
-  const context = { holdDuration: 1500, holdStartedAt: null, lastHoldAt: null, lastStableLabel: '',
-    holdProgress: { value: 0 }, holdLabel: { textContent: '' } };
+test('hold takes 1000 ms and resets on changed signs, missing hands, and frame gaps', () => {
+  const context = { holdDuration: 1000, holdStartedAt: null, lastHoldAt: null, lastStableLabel: '',
+    holdProgress: { value: 0 }, lessonHoldProgress: { value: 0 }, lessonMode: true,
+    lessonHoldLabel: { textContent: '' }, holdLabel: { textContent: '' } };
   const hold = loadHelper('updateSignHold', context);
-  for (let time = 0; time < 1500; time += 100) assert.equal(hold('C', time), false);
-  assert.equal(context.holdProgress.value, 1400);
-  assert.equal(hold('C', 1500), true);
-  assert.equal(context.holdProgress.value, 1500);
-  assert.equal(hold('A', 1600), false);
+  for (let time = 0; time < 1000; time += 100) assert.equal(hold('C', time), false);
+  assert.equal(context.holdProgress.value, 900);
+  assert.equal(context.lessonHoldProgress.value, 900);
+  assert.equal(hold('C', 1000), true);
+  assert.equal(context.holdProgress.value, 1000);
+  assert.equal(context.lessonHoldProgress.value, 1000);
+  assert.match(context.lessonHoldLabel.textContent, /1\.0 \/ 1 second/);
+  assert.equal(hold('A', 1100), false);
   assert.equal(context.holdProgress.value, 0);
-  hold('', 1700);
-  assert.equal(hold('A', 1800), false);
+  hold('', 1200);
+  assert.equal(hold('A', 1300), false);
   assert.equal(hold('A', 4000), false);
   assert.equal(context.holdProgress.value, 0);
+});
+
+test('random lesson order contains each alphabet letter once', () => {
+  const context = { lessonAlphabet: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', Math: { random: () => 0, floor: Math.floor } };
+  const shuffled = loadHelper('shuffledLessonAlphabet', context)();
+  assert.equal(shuffled.length, 26);
+  assert.deepEqual([...shuffled].sort(), [...context.lessonAlphabet].sort());
+  assert.notEqual(shuffled.join(''), context.lessonAlphabet);
 });
 
 test('automatic submission validates the local word and prevents duplicate sends', () => {

@@ -86,6 +86,9 @@ test("two players complete separate words, share video, and confirm a rematch", 
     server.kill();
   });
   assert.equal((await fetch(`http://127.0.0.1:${port}/`)).status, 200);
+  const alphabetGuide = await fetch(`http://127.0.0.1:${port}/signLanguage.jpg`);
+  assert.equal(alphabetGuide.status, 200);
+  assert.equal(alphabetGuide.headers.get("content-type"), "image/jpeg");
   assert.equal((await fetch(`http://127.0.0.1:${port}/package.json`)).status, 404);
 
   const initialWordPairs = new Set();

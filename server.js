@@ -31,12 +31,14 @@ const MAX_IMAGES_PER_MINUTE = 20;
 const GENERATED_PATH = /^\/generated\/([0-9a-f]{32})$/;
 const PUBLIC_FILES = new Set([
   "/index.html",
+  "/signLanguage.jpg",
   "/assets/asl_classes.json",
   "/assets/asl_classifier.onnx",
 ]);
 const MIME_TYPES = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
+  ".jpg": "image/jpeg",
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".onnx": "application/octet-stream",
