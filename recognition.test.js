@@ -13,22 +13,30 @@ function loadHelper(name, context) {
   return context[name];
 }
 
-test('hold takes 1000 ms and resets on changed signs, missing hands, and frame gaps', () => {
-  const context = { holdDuration: 1000, holdStartedAt: null, lastHoldAt: null, lastStableLabel: '',
+test('hold takes 1500 ms and resets on changed signs, missing hands, and frame gaps', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const holdDuration = Number(html.match(/const holdDuration = (\d+);/)[1]);
+  assert.equal(holdDuration, 1500);
+  for (const id of ['hold-progress', 'lesson-hold-progress']) {
+    assert.match(html, new RegExp(`id="${id}" max="1500"`));
+  }
+  const context = { holdDuration, holdStartedAt: null, lastHoldAt: null, lastStableLabel: '',
     holdProgress: { value: 0 }, lessonHoldProgress: { value: 0 }, lessonMode: true,
     lessonHoldLabel: { textContent: '' }, holdLabel: { textContent: '' } };
   const hold = loadHelper('updateSignHold', context);
-  for (let time = 0; time < 1000; time += 100) assert.equal(hold('C', time), false);
-  assert.equal(context.holdProgress.value, 900);
-  assert.equal(context.lessonHoldProgress.value, 900);
-  assert.equal(hold('C', 1000), true);
-  assert.equal(context.holdProgress.value, 1000);
-  assert.equal(context.lessonHoldProgress.value, 1000);
-  assert.match(context.lessonHoldLabel.textContent, /1\.0 \/ 1 second/);
-  assert.equal(hold('A', 1100), false);
+  for (let time = 0; time < 1500; time += 100) assert.equal(hold('C', time), false);
+  assert.equal(context.holdProgress.value, 1400);
+  assert.equal(context.lessonHoldProgress.value, 1400);
+  assert.equal(hold('C', 1499), false);
+  assert.equal(hold('C', 1500), true);
+  assert.equal(context.holdProgress.value, 1500);
+  assert.equal(context.lessonHoldProgress.value, 1500);
+  assert.match(context.lessonHoldLabel.textContent, /1\.5 \/ 1\.5 seconds/);
+  assert.match(context.holdLabel.textContent, /1\.5 \/ 1\.5 seconds/);
+  assert.equal(hold('A', 1600), false);
   assert.equal(context.holdProgress.value, 0);
-  hold('', 1200);
-  assert.equal(hold('A', 1300), false);
+  hold('', 1700);
+  assert.equal(hold('A', 1800), false);
   assert.equal(hold('A', 4000), false);
   assert.equal(context.holdProgress.value, 0);
 });
@@ -120,7 +128,8 @@ test('each player sees their own word and cannot sign after finishing it', () =>
   const elements = new Map();
   const get = id => { if (!elements.has(id)) elements.set(id, node()); return elements.get(id); };
   const context = {
-    document: {querySelector: get, createElement: node},
+    document: {querySelector: get, createElement: node, body: { classList: { remove() {} } }},
+    lessonMode: true,
     roomState: {status: 'playing', code: 'ABC234', words: ['CAT', 'DOG'], letters: ['', ''], score: 0,
       targetScore: 500, roundDuration: 120, wordsCompleted: 0, secondsRemaining: 120, pendingRematch: null,
       picture: null, pictureJob: null, players: [{name: 'Alex', connected: true}, {name: 'Sam', connected: true}]},
@@ -135,6 +144,7 @@ test('each player sees their own word and cannot sign after finishing it', () =>
     'manualStatus', 'select', 'resetButton', 'cameraStart', 'videoShareStart', 'videoShareStop', 'videoShareStatus']) context[key] = node();
   const render = loadHelper('updateRoomUI', context);
   render();
+  assert.equal(context.lessonMode, false);
   assert.equal(get('#turn-warning').hidden, false);
   assert.match(get('#turn-warning-copy').textContent, /Sign C/);
   assert.equal(get('#partner-label').textContent, "Sam's word: DOG");
@@ -309,4 +319,13 @@ test('completed word pairs change the palette once, reset for new games, and res
   update(0, 'room:2');
   assert.equal(context.document.body.dataset.palette, 'blue');
   assert.equal(animations, 1);
+});
+
+test('practice camera controls are mounted without starting camera capture', () => {
+  const panel = {};
+  const context = { localMediaPanel: panel, cameraStart: {},
+    lessonCameraSlot: { append(value) { this.child = value; } } };
+  loadHelper('showPracticeCamera', context)();
+  assert.equal(context.lessonCameraSlot.child, panel);
+  assert.equal(context.cameraStart.textContent, 'Start lesson camera');
 });

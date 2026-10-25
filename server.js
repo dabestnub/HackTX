@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
 const { WebSocketServer, WebSocket } = require("ws");
+const { createCoachHandler } = require("./server/coach/coach-route");
 
 const ROOT = __dirname;
 try {
@@ -34,6 +35,7 @@ const PUBLIC_FILES = new Set([
   "/signLanguage.jpg",
   "/assets/asl_classes.json",
   "/assets/asl_classifier.onnx",
+  "/assets/signsync-logo.jpg",
 ]);
 const MIME_TYPES = {
   ".css": "text/css; charset=utf-8",
@@ -50,6 +52,20 @@ const images = new Map();
 let imageJobsInFlight = 0;
 let hintJobsInFlight = 0;
 const imageStarts = [];
+const coachHandler = createCoachHandler({
+  fetchImpl: globalThis.fetch,
+  endpoint: process.env.META_MUSE_TEXT_ENDPOINT || process.env.COACH_ENDPOINT || "https://api.meta.ai/v1/chat/completions",
+  apiKey: process.env.META_MUSE_API_KEY || process.env.COACH_API_KEY,
+  model: process.env.META_MUSE_TEXT_MODEL || process.env.COACH_MODEL || "muse-spark-1.3",
+  imageFetchImpl: globalThis.fetch,
+  imageEndpoint: process.env.META_MUSE_IMAGE_ENDPOINT || IMAGE_ENDPOINT,
+  imageApiKey: process.env.META_MUSE_API_KEY || process.env.COACH_API_KEY,
+  imageModel: process.env.META_MUSE_IMAGE_MODEL || IMAGE_MODEL,
+  imageSize: process.env.META_MUSE_COACH_IMAGE_SIZE || "512x512",
+  visionEndpoint: process.env.META_MUSE_VISION_ENDPOINT || process.env.META_MUSE_TEXT_ENDPOINT || process.env.COACH_ENDPOINT,
+  visionApiKey: process.env.META_MUSE_API_KEY || process.env.COACH_API_KEY,
+  visionModel: process.env.META_MUSE_VISION_MODEL || process.env.META_MUSE_TEXT_MODEL || process.env.COACH_MODEL || "muse-spark-1.3",
+});
 
 function randomCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -697,6 +713,10 @@ function serveFile(request, response) {
     pathname = new URL(request.url, "http://localhost").pathname;
   } catch {
     response.writeHead(400).end("Bad request");
+    return;
+  }
+  if (request.method === "POST" && (pathname === "/api/coach" || pathname === "/api/coach/chat" || pathname === "/api/coach/image")) {
+    void coachHandler(request, response);
     return;
   }
   let requested;

@@ -15,58 +15,95 @@
       --muted: #62695f;
       --line: #cccdbf;
       --yellow: #e9f18c;
+      --surface: #faf9f4;
+      --radius: 16px;
     }
     * { box-sizing: border-box; }
     [hidden] { display: none !important; }
     body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.5 "Avenir Next", Avenir, "Segoe UI", sans-serif; }
     button, input, select { font: inherit; }
-    button { min-height: 46px; padding: 11px 18px; border: 1px solid var(--ink); border-radius: 3px; background: var(--ink); color: #fff; font-weight: 650; cursor: pointer; }
+    input, select { min-width: 0; }
+    button { line-height: 1.4; }
+    button { min-height: 46px; padding: 11px 18px; border: 1px solid var(--ink); border-radius: 8px; background: var(--ink); color: #fff; font-weight: 650; cursor: pointer; }
     button:hover:not(:disabled) { background: #365545; }
     button:disabled { opacity: .45; cursor: not-allowed; }
     :focus-visible { outline: 3px solid #957022; outline-offset: 4px; }
     .secondary { background: transparent; color: var(--ink); border-color: #949e90; }
     .secondary:hover:not(:disabled) { background: #e2e5d7; }
-    input, select { width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid #949e90; border-radius: 3px; background: #faf9f4; color: var(--ink); }
+    input, select { width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid #949e90; border-radius: 8px; background: #faf9f4; color: var(--ink); }
     input::placeholder { color: #73796f; }
     h1, h2, h3, p { margin: 0; }
     h2 { font-size: 1.15rem; line-height: 1.25; }
     .muted, .subhead { color: var(--muted); }
-    .page { width: min(1360px, calc(100% - 80px)); margin: auto; }
-    header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 25px 0; border-bottom: 1px solid var(--ink); margin-bottom: 32px; }
+    .page { width: min(1280px, calc(100% - 80px)); margin: auto; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 25px 0; border-bottom: 1px solid var(--line); margin-bottom: 32px; }
     .brand { display: flex; align-items: center; gap: 12px; }
-    .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; background: var(--ink); color: var(--yellow); font: italic 29px Georgia, serif; }
+    .brand-mark { display: block; width: 44px; height: 44px; flex: 0 0 44px; border: 1px solid var(--line); border-radius: 12px; object-fit: cover; }
     h1 { font-size: 1.6rem; letter-spacing: -.06em; }
     .subhead { font-size: .75rem; }
     .badge, .player-connection { display: inline-flex; align-items: center; gap: 8px; font-size: .76rem; }
     .dot, .connection-dot { width: 7px; height: 7px; border-radius: 50%; background: #9b6938; flex-shrink: 0; }
     .dot, .connection-dot.online { background: #387146; }
-    .lobby { display: grid; grid-template-columns: minmax(300px, .85fr) minmax(0, 1.35fr); grid-template-areas: "entry story"; min-height: 620px; }
-    .lobby-panel { grid-area: entry; padding: 26px 48px 26px 0; }
+    .lobby { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "entry story"; gap: 24px; align-items: stretch; }
+    .lobby-panel { grid-area: entry; min-width: 0; padding: 24px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
     .lobby-panel h2 { font: 2rem Georgia, serif; margin-bottom: 10px; }
-    .lobby-panel > p { font-size: .86rem; color: var(--muted); margin: 8px 0 24px; }
-    .lobby-intro { grid-area: story; display: flex; flex-direction: column; justify-content: center; padding: clamp(28px, 4.7vw, 72px); background: var(--ink); color: var(--paper); }
+    .lobby-panel > p { font-size: .86rem; color: var(--muted); margin: 8px 0 16px; }
+    .lobby-intro { grid-area: story; min-width: 0; border-radius: var(--radius); display: flex; flex-direction: column; justify-content: center; padding: clamp(24px, 3vw, 44px); background: var(--ink); color: var(--paper); }
     .eyebrow, .target-label { font: 600 .7rem/1.5 "Courier New", monospace; text-transform: uppercase; letter-spacing: .14em; }
-    .lobby-intro .eyebrow { color: var(--yellow); margin-bottom: 42px; }
-    .lobby-title { font: normal clamp(3.8rem, 6.2vw, 6.5rem)/.98 Georgia, serif; letter-spacing: -.065em; margin-bottom: 30px; }
+    .lobby-intro .eyebrow { color: var(--yellow); margin-bottom: 24px; }
+    .lobby-title { font: normal clamp(3rem, 5vw, 5rem)/.98 Georgia, serif; letter-spacing: -.065em; margin-bottom: 20px; }
     .lobby-title em { color: var(--yellow); font-weight: normal; }
-    .lobby-copy { max-width: 380px; color: #d5ddce; line-height: 1.7; font-size: .95rem; }
-    .step-pills { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; border-top: 1px solid #6b7d6b; padding-top: 20px; margin-top: 54px; }
-    .step-pill { font-size: .76rem; color: #e3e9d8; }
-    .lobby-form { display: grid; gap: 14px; }
-    .lobby-form + .lobby-form { margin-top: 26px; padding-top: 26px; border-top: 1px solid var(--line); }
-    .lobby-form label, .field { display: grid; gap: 6px; font-size: .78rem; font-weight: 650; }
+    .lobby-copy { width: 100%; color: #d5ddce; line-height: 1.7; font-size: .95rem; text-align: left; }
+    .play-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 28px; }
+    .play-mode { padding: 16px; border: 1px solid #5c7768; border-radius: 12px; background: #2a4b3d; }
+    .play-mode h3 { font: 1.15rem Georgia, serif; color: var(--yellow); }
+    .play-mode p { margin-top: 8px; color: #e0e7dd; font-size: .8rem; line-height: 1.6; }
+    .play-guide { margin-top: 28px; padding-top: 24px; border-top: 1px solid #6b7d6b; }
+    .play-guide h3 { font: 1.4rem Georgia, serif; }
+    .play-guide ol { display: grid; gap: 16px; padding-left: 22px; margin: 18px 0 0; color: #d5ddce; font-size: .85rem; }
+    .play-guide li { padding-left: 6px; }
+    .play-guide li::marker { color: var(--yellow); font-weight: 700; }
+    .play-guide strong { display: block; color: var(--paper); margin-bottom: 3px; }
+    .lobby-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .lobby-form > * { grid-column: 1 / -1; }
+    .lobby-form label { grid-template-rows: 1fr auto; }
+    .lobby-form .half-field { grid-column: auto; }
+    .lobby-form > .muted { font-size: .75rem; margin-top: -8px; }
+    .lobby-form + .lobby-form { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .lobby-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 18px 0 8px; }
+    .lobby-tools button { min-width: 0; padding-inline: 10px; }
+    .tutorial-panel { margin: 0 0 24px; padding: 24px 0; display: grid; gap: 10px; scroll-margin-top: 20px; }
+    .tutorial-panel .tutorial-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .tutorial-panel .tutorial-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tutorial-panel .tutorial-output { min-height: 120px; max-height: 240px; overflow: auto; padding: 10px; border: 1px solid var(--line); background: #fff; white-space: pre-line; font-size: .82rem; }
+    .tutorial-panel .tutorial-meta { font-size: .75rem; color: var(--muted); }
+    .lobby-form label, .tutorial-panel label, .field { display: grid; gap: 6px; font-size: .78rem; font-weight: 650; }
     .room-code-input { text-transform: uppercase; letter-spacing: .18em; font-family: monospace; }
-    #preview-game { padding: 0; margin-top: 22px; min-height: 44px; border: 0; text-decoration: underline; text-underline-offset: 4px; font-size: .8rem; }
+    #preview-game { padding: 0; margin-top: 12px; min-height: 44px; border: 0; text-decoration: underline; text-underline-offset: 4px; font-size: .8rem; }
+    .lobby-panel > p.preview-help { margin: 4px 0 12px; font-size: .75rem; }
     .lobby-panel > p.lobby-error { color: #a02c21; margin-bottom: 0; }
-    .lesson-screen { margin: 32px 0; }
+    .lesson-screen { margin: 24px 0; border-radius: var(--radius); padding: clamp(20px, 3vw, 36px); border: 1px solid var(--line); background: #faf9f4; }
     .lesson-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
-    .lesson-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); gap: 28px; align-items: start; }
-    .lesson-guide, .lesson-practice, .lesson-summary { padding: clamp(20px, 3vw, 36px); }
+    .lesson-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); gap: 32px; align-items: stretch; }
+    .lesson-guide, .lesson-practice, .lesson-summary { min-width: 0; padding: 24px; border: 1px solid #d4d7c9; border-radius: 16px; box-shadow: 0 8px 24px rgb(32 58 48 / 7%); }
+    .lesson-guide { background: #fff; }
+    .lesson-practice { background: #eef1e7; }
+    .lesson-guide > .muted { margin-top: 12px; }
+    .lesson-hold progress { width: 100%; accent-color: var(--ink); }
+    .lesson-summary button { background: var(--yellow); color: var(--ink); }
     .lesson-guide img { display: block; width: 100%; margin-top: 20px; }
+    .lesson-guide img { width: auto; max-width: 100%; max-height: 420px; margin-inline: auto; object-fit: contain; background: #fff; }
     .lesson-practice h2 { font: 2rem Georgia, serif; margin: 12px 0; }
     .lesson-letter { display: block; color: var(--ink); font: 6rem/1 Georgia, serif; margin: 18px 0; }
+    .lesson-summary { background: var(--ink); color: var(--paper); }
     .lesson-status { min-height: 3em; margin: 16px 0; color: var(--muted); }
     .lesson-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+    #lesson-practice-panel { scroll-margin-top: 20px; }
+    #practice-title { margin: 0 0 16px; }
+    #lesson-camera-slot { margin-top: 20px; }
+    #lesson-camera-slot #video-share-start, #lesson-camera-slot #video-share-stop,
+    #lesson-camera-slot #video-share-status { display: none; }
+
     .lesson-mode-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
     .lesson-hold { display: grid; gap: 6px; margin: 18px 0; font-size: .8rem; }
     .lesson-summary h2 { font: clamp(2.5rem, 6vw, 4.5rem)/1.1 Georgia, serif; margin: 16px 0; }
@@ -76,7 +113,7 @@
     body.lesson-active #video-share-status { display: none !important; }
     @media (max-width: 700px) { .lesson-layout { grid-template-columns: 1fr; } }
     .fine-print { border-top: 1px solid var(--line); margin: 32px 0 0; padding: 20px 0 28px; color: var(--muted); font-size: .72rem; max-width: 100%; }
-    .results-screen { max-width: 760px; margin: 48px auto; padding: clamp(24px, 5vw, 56px); background: var(--ink); color: var(--paper); }
+    .results-screen { border-radius: var(--radius); max-width: 760px; margin: 48px auto; padding: clamp(24px, 5vw, 56px); background: var(--ink); color: var(--paper); }
     .results-screen h2 { font: clamp(2.5rem, 6vw, 4.5rem)/1.1 Georgia, serif; margin: 20px 0; }
     .results-screen .eyebrow { color: var(--yellow); }
     .results-stats { display: flex; flex-wrap: wrap; gap: 40px; margin: 32px 0; }
@@ -102,13 +139,13 @@
     .debug-preview-note { margin-bottom: 20px; padding: 12px 16px; border-left: 3px solid #957022; background: #eae4cb; font-size: .8rem; }
     .game-over { display: none; background: #dce8cb; padding: 16px; margin-bottom: 20px; }
     .game-over.visible { display: block; }
-    .game-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-areas: "stage rail"; gap: 32px; align-items: start; }
+    .game-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-areas: "stage rail"; gap: 32px; align-items: start; }
     .round-ended .game-workspace { display: block; }
     .round-ended .game-overview, .round-ended .controls-card, .round-ended .game-over,
     .round-ended .hold-meter, .round-ended .prediction-readout, .round-ended .turn-warning { display: none; }
     .game-stage { grid-area: stage; min-width: 0; }
-    .game-overview { grid-area: rail; display: flex; flex-direction: column; border-left: 1px solid var(--line); padding-left: 28px; gap: 28px; }
-    .word-card { order: -1; padding: 26px; background: var(--yellow); }
+    .game-overview { grid-area: rail; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+    .word-card { order: -1; padding: 24px; border-radius: var(--radius); background: var(--yellow); }
     .word-card h2 { font: 1.45rem Georgia, serif; }
     .target-label { margin-top: 26px; font-size: .62rem; }
     .target-word { display: block; font: 500 clamp(2.7rem, 4vw, 3.6rem)/1.2 Georgia, serif; letter-spacing: -.04em; margin: 8px 0 20px; overflow-wrap: anywhere; }
@@ -123,17 +160,17 @@
     .score-number { font-size: 2.4rem; line-height: 1.3; }
     .score-number span { display: block; font-size: .7rem; color: var(--muted); }
     .score-number #score { font-size: 2.4rem; color: var(--ink); }
-    .timer { font: 1.9rem/1.6 monospace; font-variant-numeric: tabular-nums; }
+    .timer { font: 1.9rem/1.65 monospace; font-variant-numeric: tabular-nums; }
     .progress { height: 4px; background: #daddcd; margin-top: 14px; overflow: hidden; }
     .progress-fill { height: 100%; width: 0; background: var(--ink); transition: width .2s ease; }
-    .players { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
-    .player { min-width: 0; padding-top: 14px; border-top: 3px solid var(--line); }
+    .players { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+    .player { min-width: 0; padding: 20px; border: 1px solid var(--line); border-top: 3px solid var(--line); border-radius: var(--radius); background: var(--surface); }
     .player.active { border-color: var(--ink); }
     .player-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .player-name { font-weight: 700; overflow-wrap: anywhere; }
+    .player-name { min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .turn-tag { flex-shrink: 0; padding: 4px 6px; background: var(--yellow); font: bold .6rem monospace; }
     .player-connection { color: var(--muted); font-size: .7rem; margin-top: 8px; }
-    .preview { display: grid; place-items: center; min-height: 240px; margin-top: 18px; overflow: hidden; background: #dde2d5; text-align: center; }
+    .preview { display: grid; place-items: center; height: 240px; border-radius: 10px; margin-top: 16px; overflow: hidden; background: #dde2d5; text-align: center; }
     #camera-preview { position: relative; }
     .hand-landmark-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
     .preview-icon { font: 2.5rem Georgia, serif; color: #52694f; }
@@ -142,7 +179,7 @@
     .camera-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
     .camera-actions button { width: 100%; padding: 10px; font-size: .76rem; }
     .camera-status { margin-top: 10px; font-size: .72rem; color: var(--muted); }
-    .prediction-readout { display: flex; align-items: baseline; gap: 12px; margin-top: 16px; }
+    .prediction-readout { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
     .prediction-letter { font: 2rem monospace; }
     .turn-warning { margin-top: 16px; padding: 18px; border: 2px solid #8b4d16; background: #fff0c6; color: #60340d; font-weight: 750; }
     .turn-warning.ready { background: #e4edd7; border-color: #43643e; color: #203a30; }
@@ -151,7 +188,7 @@
     .hold-meter { margin-top: 12px; font-size: .78rem; }
     .hold-meter progress { display: block; width: 100%; height: 12px; margin-top: 6px; accent-color: var(--ink); }
     .prediction-detail { font-size: .75rem; color: var(--muted); }
-    .controls-card { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--ink); }
+    .controls-card { margin-top: 24px; padding: 24px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
     .controls-card h2 { font: 1.6rem Georgia, serif; }
     .controls-card > .muted { margin-top: 10px; max-width: 620px; font-size: .8rem; }
     .controls { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
@@ -164,16 +201,16 @@
     .debug-keypad button { padding: 8px; }
     .notice { margin-top: 18px; font-size: .8rem; }
     .completed { color: #2b6a3e; font-weight: bold; }
-    .image-card { border-top: 1px solid var(--line); padding-top: 22px; }
+    .image-card { border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; background: var(--surface); }
     .image-card h2 { font-size: .85rem; }
     .image-placeholder { padding: 20px 0 12px; color: var(--muted); font-size: .8rem; }
     .cat-art { display: none; }
     .image-caption { font-size: .68rem; color: var(--muted); }
     @media (max-width: 1050px) {
       .page { width: calc(100% - 40px); }
-      .lobby-panel { padding-right: 28px; }
-      .game-workspace { gap: 22px; grid-template-columns: minmax(0, 1fr) 250px; }
-      .game-overview { padding-left: 20px; }
+      .lesson-layout { grid-template-columns: 1fr; }
+      .game-workspace { gap: 22px; grid-template-columns: minmax(0, 1fr) 300px; }
+      .lobby { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
       .word-card { padding: 20px; }
       .players { grid-template-columns: 1fr; }
     }
@@ -184,31 +221,35 @@
       .lobby-intro { padding: 30px 24px; }
       .lobby-intro .eyebrow { margin-bottom: 24px; }
       .lobby-title { font-size: clamp(3.4rem, 12vw, 5rem); }
-      .step-pills { margin-top: 30px; gap: 10px; }
-      .lobby-panel { padding: 32px 4px 0; }
+      .lobby-panel { padding: 24px; }
+      .lesson-toolbar, .game-topbar { flex-wrap: wrap; }
       .game-workspace { display: flex; flex-direction: column; gap: 28px; }
       .game-overview { width: 100%; border: 0; padding: 0; gap: 20px; }
       .game-stage { width: 100%; }
       .word-card { padding: 24px; }
       .image-card { display: none; }
-      .players { grid-template-columns: 1fr 1fr; gap: 16px; }
-      .preview { min-height: 180px; }
-      .player-top { flex-wrap: wrap; }
+      .players { grid-template-columns: 1fr; gap: 16px; }
+      .preview, video { height: 220px; }
+      .player-top { min-height: 24px; }
       .waiting-card { padding: 12px 20px; margin: 36px 0; }
     }
     @media (max-width: 480px) {
       .players, .room-players { grid-template-columns: 1fr; }
       .controls > * { flex: 1 1 130px; }
-      .step-pills { grid-template-columns: 1fr; gap: 6px; }
+      .play-modes { grid-template-columns: 1fr; }
+      .lobby-form, .tutorial-panel .tutorial-controls { grid-template-columns: 1fr; }
+      .lobby-tools { grid-template-columns: 1fr 1fr; }
+      .lesson-guide, .lesson-practice { padding: 18px; }
     }
-    .score-card { padding: 22px; border-bottom: 3px solid #387146; }
-    .signing-status { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .6fr); gap: 10px 24px; margin-bottom: 24px; padding: 16px 20px; border: 2px solid #387146; background: #e2e5d7; }
+    .score-card { padding: 24px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .signing-status { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .6fr); gap: 10px 24px; margin-bottom: 24px; padding: 20px 24px; align-items: center; border-radius: var(--radius); border: 1px solid #94aa8d; background: #e2e5d7; }
+    .signing-status .hold-meter, .signing-status .prediction-readout { margin-top: 0; }
     .signing-status .turn-warning { grid-column: 1 / -1; margin: 0; }
     .prediction-letter { display: grid; place-items: center; flex-shrink: 0; width: 48px; height: 48px; background: #203a30; color: #e9f18c; font: 700 1.8rem monospace; }
     #picture { display: block; width: 100%; }
     .results-screen { max-width: 1000px; }
     .results-gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 20px; margin: 24px 0; }
-    .result-picture { margin: 0; padding: 16px; border: 1px solid var(--line); background: #faf9f4; color: var(--ink); }
+    .result-picture { border-radius: 12px; min-width: 0; margin: 0; padding: 16px; border: 1px solid var(--line); background: #faf9f4; color: var(--ink); }
     .result-picture img { display: block; width: 100%; margin-bottom: 14px; }
     .result-picture figcaption, .result-picture form, .result-picture label { display: grid; gap: 12px; }
     .result-picture p, .result-picture label { font-size: .82rem; color: var(--muted); }
@@ -221,10 +262,9 @@
   <main class="page">
     <header>
       <div class="brand">
-        <div class="brand-mark" aria-hidden="true">S</div>
+        <img class="brand-mark" src="./assets/signsync-logo.jpg" alt="" aria-hidden="true">
         <div>
           <h1>SignSync</h1>
-          <p class="subhead">Two players. One conversation.</p>
         </div>
       </div>
       <span class="badge"><span class="dot" aria-hidden="true"></span><span id="site-status">Multiplayer · make a room</span></span>
@@ -265,28 +305,41 @@
       <button type="button" id="results-menu">Back to lobby</button>
     </section>
 
-    <section class="lobby" id="menu-screen" aria-labelledby="menu-title">
-      <article class="card lobby-intro">
-        <p class="eyebrow">The two-minute fingerspelling game</p>
-        <h2 class="lobby-title" id="menu-title">Your hands.<br>Their turn.<br><em>One word.</em></h2>
-        <p class="lobby-copy">Pull up a chair. Invite a friend. Take turns signing letters and race to 500 points before the clock runs out.</p>
-        <div class="step-pills" aria-label="How to play">
-          <span class="step-pill">1 · Make a room</span>
-          <span class="step-pill">2 · Invite a friend</span>
-          <span class="step-pill">3 · Spell together</span>
+    <div id="menu-screen">
+      <section class="lobby" aria-label="Create or join a game room">
+        <article class="card lobby-intro">
+        <p class="lobby-copy">Create a room, invite a friend, and sign your own words side by side. Finish each pair to make a shared picture and race to your points goal before time runs out.</p>
+        <div class="play-modes" aria-label="Choose how to play">
+          <article class="play-mode">
+            <h3>See each other</h3>
+            <p>Both players can share live video while signing, so you can see each other’s signs and words. The pictures appear after the round; there’s no guessing.</p>
+          </article>
+          <article class="play-mode">
+            <h3>Keep it hidden</h3>
+            <p>Your cameras and words stay private during the round. Afterward, all generated pictures appear and you guess your partner’s words.</p>
+          </article>
         </div>
-      </article>
-      <article class="card lobby-panel">
-        <h2>Ready, set, sync.</h2>
+        <section class="play-guide" aria-labelledby="play-guide-title">
+          <h3 id="play-guide-title">A little guide to getting in sync</h3>
+          <ol>
+            <li><strong>Invite your teammate</strong>Create a room, choose your points goal and round length, then share the six-character code with a friend.</li>
+            <li><strong>Start the round</strong>Both players enable local ASL recognition. In visible mode, each player also chooses to share live video.</li>
+            <li><strong>Sign one letter at a time</strong>Follow your word from left to right. Hold each sign steady for 1.5 seconds until the progress bar fills, then move to the next letter.</li>
+            <li><strong>Build something together</strong>You each spell your own word at the same time. Finish both words to create a shared picture and keep earning team points.</li>
+          </ol>
+        </section>
+        </article>
+        <article class="card lobby-panel">
+        <h2>Create or join a room</h2>
         <p>Create a private room or enter a friend’s six-character code.</p>
         <form class="lobby-form" id="create-form">
           <label for="create-name">Your nickname
             <input id="create-name" name="name" maxlength="24" autocomplete="nickname" placeholder="e.g. Alex" required>
           </label>
-          <label for="create-target">Points needed to win
+          <label class="half-field" for="create-target">Points needed to win
             <input id="create-target" name="targetScore" type="number" min="100" max="5000" step="25" value="500" required>
           </label>
-          <label for="create-duration">Round length
+          <label class="half-field" for="create-duration">Round length
             <select id="create-duration" name="roundDuration">
               <option value="60">1 minute</option>
               <option value="120" selected>2 minutes</option>
@@ -304,68 +357,97 @@
           <button type="submit" id="create-room">Create a room</button>
         </form>
         <form class="lobby-form" id="join-form">
-          <label for="join-name">Nickname
+          <label class="half-field" for="join-name">Nickname
             <input id="join-name" name="name" maxlength="24" autocomplete="nickname" placeholder="e.g. Jamie" required>
           </label>
-          <label for="join-code">Room code
+          <label class="half-field" for="join-code">Room code
             <input class="room-code-input" id="join-code" name="code" maxlength="6" autocomplete="off" placeholder="ABC234" required>
           </label>
-          <button type="submit" class="secondary" id="join-room">Join a room</button>
+          <button type="submit" id="join-room">Join a room</button>
         </form>
+        <div class="lobby-tools">
+          <button type="button" class="secondary" id="open-tutorial">ASL Letter Coach</button>
+          <button type="button" id="start-lessons">Practice ASL letters</button>
+        </div>
         <button type="button" class="secondary" id="preview-game">Preview game screen</button>
-        <p class="muted">A sample round. No room or camera needed.</p>
-        <button type="button" class="secondary" id="start-lessons">Learn ASL letters</button>
+        <p class="preview-help muted">A sample round. No room or camera needed.</p>
         <p class="lobby-error" id="lobby-error" role="status" aria-live="polite"></p>
-      </article>
-    </section>
+        </article>
+      </section>
 
-    <section class="lesson-screen" id="lesson-screen" hidden aria-labelledby="lesson-title">
-      <div class="lesson-toolbar">
-        <div>
-          <p class="eyebrow">Learn at your own pace</p>
-          <h2 id="lesson-title" tabindex="-1">ASL fingerspelling lessons</h2>
-        </div>
-        <button type="button" class="secondary" id="lessons-back">Back to home</button>
-      </div>
-      <div class="lesson-mode-actions" aria-label="Choose practice mode">
-        <button type="button" class="secondary" id="lesson-alphabet-mode">Alphabet lesson</button>
-        <button type="button" class="secondary" id="lesson-sandbox-mode">Random sandbox</button>
-      </div>
-      <div id="lesson-exercise" class="lesson-layout">
-        <article class="card lesson-guide">
-          <h2>Alphabet sign guide</h2>
-          <p class="muted">Use this picture to find the handshape for each letter. The classifier is an estimate and may not recognize movement-based J and Z.</p>
-          <img src="./signLanguage.jpg" alt="ASL fingerspelling alphabet chart showing hand signs for A through Z">
-        </article>
-        <article class="card lesson-practice">
-          <p class="eyebrow" id="lesson-progress">Letter 1 of 26</p>
-          <h2>Try this letter</h2>
-          <strong class="lesson-letter" id="lesson-letter">A</strong>
-          <p class="muted">Enable local ASL recognition, then hold the sign until the timer completes. Your camera is processed in this browser.</p>
-          <div class="lesson-hold">
-            <label for="lesson-hold-progress" id="lesson-hold-label">Hold the prompted sign for 0.8 seconds</label>
-            <progress id="lesson-hold-progress" max="800" value="0" aria-labelledby="lesson-hold-label"></progress>
+      <section class="lesson-screen" id="lesson-screen" aria-labelledby="lesson-title">
+        <div class="lesson-toolbar">
+          <div>
+            <p class="eyebrow">Learn at your own pace</p>
+            <h2 id="lesson-title" tabindex="-1">ASL fingerspelling lessons</h2>
           </div>
-          <p class="lesson-status" id="lesson-status" role="status" aria-live="polite">Start the camera when you’re ready.</p>
-          <div class="lesson-actions">
-            <button type="button" class="secondary" id="lesson-skip">Skip this letter</button>
-            <button type="button" class="secondary" id="lesson-finish-sandbox" hidden>Finish sandbox</button>
-          </div>
-          <div id="lesson-camera-slot"></div>
-        </article>
-      </div>
-      <article class="card lesson-summary" id="lesson-summary" hidden>
-        <p class="eyebrow">Lesson complete</p>
-        <h2>Nice work!</h2>
-        <p>You reached the end of the alphabet. Here’s how you did:</p>
-        <div class="results-stats">
-          <div><strong id="lesson-correct">0</strong>Correct</div>
-          <div><strong id="lesson-wrong">0</strong>Wrong</div>
-          <div><strong id="lesson-skipped">0</strong>Skipped</div>
         </div>
-        <button type="button" id="lesson-restart">Practice again</button>
-      </article>
-    </section>
+        <section class="card tutorial-panel" id="tutorial-panel" aria-labelledby="tutorial-title">
+          <h3 id="tutorial-title">ASL Letter Coach</h3>
+          <p class="tutorial-meta">Pick one letter and get a short AI coaching guide before joining a room.</p>
+          <div class="tutorial-controls">
+            <label for="tutorial-letter">Letter
+              <select id="tutorial-letter"></select>
+            </label>
+            <label for="tutorial-goal">Focus
+              <select id="tutorial-goal">
+                <option value="shape" selected>Hand shape basics</option>
+                <option value="mistakes">Common mistakes</option>
+                <option value="drill">Quick practice drill</option>
+              </select>
+            </label>
+          </div>
+          <div class="tutorial-actions"><button type="button" id="tutorial-start">Get guide</button></div>
+          <label for="tutorial-question">Follow-up question
+            <input id="tutorial-question" type="text" maxlength="220" placeholder="Optional follow-up question (e.g., Why does mine look like M?)">
+          </label>
+          <button type="button" class="secondary" id="tutorial-ask">Ask follow-up</button>
+          <p id="tutorial-status" class="tutorial-meta" role="status" aria-live="polite">Select a letter and press Get guide.</p>
+          <div id="tutorial-output" class="tutorial-output">Welcome! I can coach one letter at a time.</div>
+        </section>
+        <section id="lesson-practice-panel" aria-labelledby="practice-title">
+        <h3 id="practice-title">ASL Letter Practice</h3>
+        <div class="lesson-mode-actions">
+          <button type="button" class="secondary" id="lesson-sandbox-mode">Random letter</button>
+        </div>
+        <div id="lesson-exercise" class="lesson-layout">
+          <article class="card lesson-guide">
+            <h2>Alphabet sign guide</h2>
+            <p class="muted">Use this picture to find the handshape for each letter. The classifier is an estimate and may not recognize movement-based J and Z.</p>
+            <img src="./signLanguage.jpg" alt="ASL fingerspelling alphabet chart showing hand signs for A through Z">
+          </article>
+          <article class="card lesson-practice">
+            <p class="eyebrow" id="lesson-progress">Letter 1 of 26</p>
+            <h2>Try this letter</h2>
+            <strong class="lesson-letter" id="lesson-letter">A</strong>
+            <p class="muted">Enable local ASL recognition, then hold the sign until the timer completes. Your camera is processed in this browser.</p>
+            <div class="lesson-hold">
+              <label for="lesson-hold-progress" id="lesson-hold-label">Hold the prompted sign for 1.5 seconds</label>
+              <progress id="lesson-hold-progress" max="1500" value="0" aria-labelledby="lesson-hold-label"></progress>
+            </div>
+            <p class="lesson-status" id="lesson-status" role="status" aria-live="polite">Start the camera when you’re ready.</p>
+            <div class="lesson-actions">
+              <button type="button" class="secondary" id="lesson-skip">Skip this letter</button>
+              <button type="button" class="secondary" id="lesson-finish-sandbox" hidden>Finish practice</button>
+            </div>
+            <div id="lesson-camera-slot"></div>
+          </article>
+        </div>
+        <article class="card lesson-summary" id="lesson-summary" hidden>
+          <p class="eyebrow">Lesson complete</p>
+          <h2>Nice work!</h2>
+          <p>You reached the end of the alphabet. Here’s how you did:</p>
+          <div class="results-stats">
+            <div><strong id="lesson-correct">0</strong>Correct</div>
+            <div><strong id="lesson-wrong">0</strong>Wrong</div>
+            <div><strong id="lesson-skipped">0</strong>Skipped</div>
+          </div>
+          <button type="button" id="lesson-restart">Practice again</button>
+        </article>
+        </section>
+      </section>
+
+    </div>
 
 
 
@@ -394,8 +476,8 @@
             <span id="turn-warning-copy"></span>
           </div>
           <div class="hold-meter">
-            <label for="hold-progress" id="hold-label">Hold the sign for 0.8 seconds</label>
-            <progress id="hold-progress" max="800" value="0" aria-labelledby="hold-label"></progress>
+            <label for="hold-progress" id="hold-label">Hold the sign for 1.5 seconds</label>
+            <progress id="hold-progress" max="1500" value="0" aria-labelledby="hold-label"></progress>
           </div>
           <div class="prediction-readout" aria-live="polite">
             <span class="prediction-letter" id="live-prediction">—</span>
@@ -541,8 +623,7 @@
       let roomRequestPending = false;
       let pendingSource = "";
       let leavingRoom = false;
-      // shortcut: 800ms of stable recognition aims for about 1s of physical holding; actual lock-on varies by device.
-      const holdDuration = 800;
+      const holdDuration = 1500;
       const mediaPipeVersion = "0.10.14";
       const mediaPipeWasm = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${mediaPipeVersion}/wasm`;
       const handLandmarkerModel = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
@@ -561,6 +642,13 @@
       const createForm = document.querySelector("#create-form");
       const joinForm = document.querySelector("#join-form");
       const previewGameButton = document.querySelector("#preview-game");
+      const tutorialLetter = document.querySelector("#tutorial-letter");
+      const tutorialGoal = document.querySelector("#tutorial-goal");
+      const tutorialStartButton = document.querySelector("#tutorial-start");
+      const tutorialAskButton = document.querySelector("#tutorial-ask");
+      const tutorialQuestion = document.querySelector("#tutorial-question");
+      const tutorialStatus = document.querySelector("#tutorial-status");
+      const tutorialOutput = document.querySelector("#tutorial-output");
       const notice = document.querySelector("#notice");
       const cameraPreview = document.querySelector("#camera-preview");
       const cameraStart = document.querySelector("#camera-start");
@@ -618,6 +706,236 @@
       let animationFrame = 0;
       let lastInferenceAt = 0;
       let processingFrame = false;
+      let tutorialBusy = false;
+      let tutorialChatHistory = [];
+
+      for (const letter of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+        const option = document.createElement("option");
+        option.value = letter;
+        option.textContent = `Letter ${letter}`;
+        tutorialLetter.append(option);
+      }
+      tutorialLetter.value = "A";
+      const tutorialPanel = document.querySelector("#tutorial-panel");
+      const tutorialOpenButton = document.querySelector("#open-tutorial");
+      const lessonPracticePanel = document.querySelector("#lesson-practice-panel");
+
+      function setTutorialBusy(busy, message = "") {
+        tutorialBusy = busy;
+        tutorialStartButton.disabled = busy;
+        tutorialAskButton.disabled = busy;
+        if (message) tutorialStatus.textContent = message;
+      }
+
+      function resetTutorialContext(reason) {
+        tutorialChatHistory = [];
+        tutorialQuestion.value = "";
+  tutorialOutput.textContent = "Guide context reset. Press Get guide for fresh instructions.";
+        tutorialStatus.textContent = reason;
+      }
+
+      const tutorialFocusConfig = {
+        shape: {
+          title: "Hand shape basics",
+          prompt: `Teach ASL letter {letter} to a complete beginner. Focus on exact finger, thumb, and palm orientation.`,
+          expectedSections: ["Shape map", "3-step setup", "Self-check"],
+          errors: ["fingers_not_together", "thumb_too_far"],
+        },
+        mistakes: {
+          title: "Common mistakes",
+          prompt: `Teach ASL letter {letter} by diagnosing common beginner mistakes and how to correct each one fast.`,
+          expectedSections: ["Top 3 mistakes", "Fast fixes", "Retry cue"],
+          errors: ["index_too_straight", "fingers_not_together", "thumb_too_far"],
+        },
+        drill: {
+          title: "Quick practice drill",
+          prompt: `Create a 60-second drill plan for ASL letter {letter} with reps, hold times, and pass/fail checks.`,
+          expectedSections: ["Warm-up", "Main drill", "Pass check"],
+          errors: ["hold_too_short", "confidence_low"],
+        },
+      };
+
+      function tutorialPromptFor(letter, goal, followUp = "") {
+        const config = tutorialFocusConfig[goal] || tutorialFocusConfig.shape;
+        const basePrompt = config.prompt.replaceAll("{letter}", letter);
+        const structure = [
+          `Return a practical mini-lesson for letter ${letter} with this exact structure, but do NOT include section titles or commentary labels in the response.`,
+          `Start directly with instruction. Include ${config.expectedSections[0]} in 2-3 lines.`,
+          `Then include ${config.expectedSections[1]} as numbered action steps the learner can do immediately.`,
+          `Then include ${config.expectedSections[2]} as clear pass/fail checks.`,
+          "End with one 30-60 second drill including rep count and hold duration.",
+          "No fluff, no meta wording (e.g., no 'lesson', 'notes', 'here is', 'section').",
+        ].join(" ");
+        const followUpPrompt = followUp ? ` Also answer this follow-up exactly: ${followUp}` : "";
+        return `${basePrompt} ${structure}${followUpPrompt}`;
+      }
+
+      function normalizeInstructionalText(text) {
+        if (!text) return "";
+        return String(text)
+          .replaceAll("\r", "")
+          .split("\n")
+          .map((line) => line.trim())
+          .filter((line) => line && !/^letter\s+[A-Z]\b/i.test(line) && !/^extra coaching notes:?$/i.test(line))
+          .join("\n")
+          .trim();
+      }
+
+      function formatTutorialLesson({ primary, secondary = "" }) {
+        const cleanPrimary = normalizeInstructionalText(primary);
+        const cleanSecondary = normalizeInstructionalText(secondary);
+        if (cleanSecondary) return `${cleanPrimary}\n\n${cleanSecondary}`.trim();
+        return cleanPrimary;
+      }
+
+      async function fetchTutorialLesson(followUp = "") {
+        if (tutorialBusy) return;
+        const letter = tutorialLetter.value;
+        const goal = tutorialGoal.value;
+        const focusTitle = (tutorialFocusConfig[goal] || tutorialFocusConfig.shape).title;
+  setTutorialBusy(true, `Generating ${focusTitle.toLowerCase()} guide for letter ${letter}…`);
+        tutorialOutput.textContent = `Building your ${focusTitle.toLowerCase()} guide for letter ${letter}…`;
+        try {
+          const firstResponse = await fetch("/api/coach", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              mode: "tutorial-lesson",
+              target: letter,
+              focus: goal,
+              followUp,
+              message: tutorialPromptFor(letter, goal, followUp),
+            }),
+          });
+          if (!firstResponse.ok) throw new Error("Coach service unavailable");
+          const firstBody = await firstResponse.json();
+          const primaryReply = String(firstBody?.lesson || "").trim();
+
+          let secondaryReply = "";
+          const needsExpansion = primaryReply.length < 260 || primaryReply.split("\n").length < 4;
+          if (needsExpansion) {
+            const focus = tutorialFocusConfig[goal] || tutorialFocusConfig.shape;
+            const fallbackResponse = await fetch("/api/coach", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                target: letter,
+                predicted: "",
+                confidence: 0,
+                holdMs: 0,
+                errors: focus.errors,
+                detailLevel: "detailed",
+              }),
+            });
+            if (fallbackResponse.ok) {
+              const fallbackBody = await fallbackResponse.json();
+              secondaryReply = String(fallbackBody?.advice || "").trim();
+            }
+          }
+
+          const finalLesson = formatTutorialLesson({
+            primary: primaryReply || `Let's practice letter ${letter}. Keep your hand steady and try again.`,
+            secondary: secondaryReply,
+          });
+
+          tutorialOutput.textContent = finalLesson;
+          tutorialStatus.textContent = `${focusTitle} guide ready for letter ${letter}.`;
+          tutorialChatHistory.push(
+            { role: "user", content: tutorialPromptFor(letter, goal, followUp) },
+            { role: "assistant", content: finalLesson },
+          );
+          tutorialChatHistory = tutorialChatHistory.slice(-20);
+        } catch {
+          tutorialOutput.textContent = [
+            `Quick fallback guide for letter ${letter}:`,
+            "1) Build the base finger shape first.",
+            "2) Set thumb position second and keep wrist steady.",
+            "3) Hold for 2 seconds, relax, and repeat for 6 reps.",
+            "4) Mirror-check palm angle and finger spacing each rep.",
+          ].join("\n");
+          tutorialStatus.textContent = "The coach server is unavailable; showing a built-in guide instead.";
+        } finally {
+          setTutorialBusy(false);
+        }
+      }
+
+      async function fetchTutorialFollowUp(question) {
+        if (tutorialBusy) return;
+        const letter = tutorialLetter.value;
+        const goal = tutorialGoal.value;
+        const focusTitle = (tutorialFocusConfig[goal] || tutorialFocusConfig.shape).title;
+        setTutorialBusy(true, `Asking Muse about ${letter} (${focusTitle.toLowerCase()})…`);
+        try {
+          const response = await fetch("/api/coach", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              mode: "tutorial-followup",
+              question,
+              target: letter,
+              focus: goal,
+              messages: tutorialChatHistory,
+            }),
+          });
+          if (!response.ok) throw new Error("Coach chat unavailable");
+          const body = await response.json();
+          const reply = String(body?.reply || "").trim();
+          if (!reply) {
+            tutorialStatus.textContent = "Muse did not return an answer yet. Please try your follow-up again.";
+            return;
+          }
+          const finalReply = reply || "I couldn't generate a follow-up answer right now. Try asking again.";
+          tutorialOutput.textContent = `Follow-up answer:\n${finalReply}`;
+          tutorialStatus.textContent = body?.source === "remote"
+            ? `Muse answered your follow-up for letter ${letter}.`
+            : `Showing a fallback follow-up answer for letter ${letter} (Muse unavailable).`;
+          tutorialChatHistory.push(
+            { role: "user", content: question },
+            { role: "assistant", content: finalReply },
+          );
+          tutorialChatHistory = tutorialChatHistory.slice(-20);
+        } catch {
+          tutorialStatus.textContent = "Couldn't get a follow-up answer right now. Please try again.";
+        } finally {
+          setTutorialBusy(false);
+        }
+      }
+
+      tutorialOpenButton.addEventListener("click", () => {
+        tutorialPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      document.querySelector("#start-lessons").addEventListener("click", () => {
+        lessonPracticePanel.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      tutorialGoal.addEventListener("change", () => {
+        const goal = tutorialGoal.value;
+        const focusTitle = (tutorialFocusConfig[goal] || tutorialFocusConfig.shape).title;
+        resetTutorialContext(`Focus changed to ${focusTitle}. Press Get guide to regenerate.`);
+      });
+      tutorialLetter.addEventListener("change", () => {
+        resetTutorialContext(`Letter changed to ${tutorialLetter.value}. Press Get guide to regenerate.`);
+      });
+      tutorialStartButton.addEventListener("click", () => { void fetchTutorialLesson(); });
+      function submitTutorialFollowUp() {
+        const followUp = tutorialQuestion.value.trim();
+        if (!followUp) {
+          tutorialStatus.textContent = "Type a follow-up question first.";
+          tutorialQuestion.value = "";
+          return;
+        }
+        tutorialQuestion.value = "";
+        void fetchTutorialFollowUp(followUp);
+      }
+
+      tutorialAskButton.addEventListener("click", () => {
+        submitTutorialFollowUp();
+      });
+      tutorialQuestion.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        submitTutorialFollowUp();
+      });
+
 
       createForm.addEventListener("submit", (event) => {
         event.preventDefault();
@@ -703,7 +1021,6 @@
         waitingScreen.hidden = true;
         gameScreen.hidden = true;
         resultsScreen.hidden = true;
-        lessonScreen.hidden = true;
         lessonExercise.hidden = false;
         lessonSummary.hidden = true;
         reconnectPanel.hidden = true;
@@ -712,10 +1029,12 @@
         url.searchParams.delete("room");
         history.replaceState(null, "", url);
         showLobbyError("");
+        showPracticeCamera();
       }
 
-      function startLessons() {
-        startLessonMode(false);
+      function showPracticeCamera() {
+        lessonCameraSlot.append(localMediaPanel);
+        cameraStart.textContent = "Start lesson camera";
       }
 
       function startSandbox() {
@@ -730,21 +1049,19 @@
         lessonCorrect = 0;
         lessonWrong = 0;
         lessonSkipped = 0;
-        menuScreen.hidden = true;
         waitingScreen.hidden = true;
         gameScreen.hidden = true;
         resultsScreen.hidden = true;
         reconnectPanel.hidden = true;
-        lessonScreen.hidden = false;
         lessonExercise.hidden = false;
         lessonSummary.hidden = true;
         document.body.classList.add("lesson-active");
-        lessonCameraSlot.append(localMediaPanel);
-        cameraStart.textContent = "Start lesson camera";
+        showPracticeCamera();
         updateLessonPrompt();
         lessonStatus.textContent = randomOrder
-          ? "Random sandbox: sign each prompt, or finish whenever you like."
+          ? "Random letter: sign each prompt, or finish whenever you like."
           : "Start the camera when you’re ready.";
+        lessonScreen.scrollIntoView({ behavior: "smooth", block: "start" });
       }
 
       function shuffledLessonAlphabet() {
@@ -760,12 +1077,12 @@
         const letter = lessonOrder[lessonIndex];
         lessonLetter.textContent = letter;
         lessonProgress.textContent = lessonSandbox
-          ? `Random sandbox · ${lessonIndex + 1} of ${lessonOrder.length}`
+          ? `Random letter · ${lessonIndex + 1} of ${lessonOrder.length}`
           : `Letter ${lessonIndex + 1} of ${lessonOrder.length}`;
         document.querySelector("#lesson-skip").disabled = !lessonMode;
         document.querySelector("#lesson-finish-sandbox").hidden = !lessonSandbox;
         lessonHoldProgress.value = 0;
-        lessonHoldLabel.textContent = "Hold the prompted sign for 0.8 seconds";
+        lessonHoldLabel.textContent = "Hold the prompted sign for 1.5 seconds";
       }
 
       function advanceLesson(feedback) {
@@ -810,7 +1127,7 @@
         document.querySelector("#lesson-correct").textContent = lessonCorrect;
         document.querySelector("#lesson-wrong").textContent = lessonWrong;
         document.querySelector("#lesson-skipped").textContent = lessonSkipped;
-        document.querySelector("#lesson-summary h2").textContent = lessonSandbox ? "Sandbox complete!" : "Nice work!";
+        document.querySelector("#lesson-summary h2").textContent = lessonSandbox ? "Practice complete!" : "Nice work!";
         document.querySelector("#lesson-summary > p:not(.eyebrow)").textContent = lessonSandbox
           ? "Here’s how you did in random-order practice:"
           : "You reached the end of the alphabet. Here’s how you did:";
@@ -843,17 +1160,16 @@
 
       document.querySelector("#cancel-room").addEventListener("click", returnToMenu);
       document.querySelector("#leave-room").addEventListener("click", returnToMenu);
-      document.querySelector("#start-lessons").addEventListener("click", startLessons);
-      document.querySelector("#lesson-alphabet-mode").addEventListener("click", startLessons);
       document.querySelector("#lesson-sandbox-mode").addEventListener("click", startSandbox);
       document.querySelector("#lesson-finish-sandbox").addEventListener("click", finishLessons);
-      document.querySelector("#lessons-back").addEventListener("click", returnToMenu);
       document.querySelector("#lesson-skip").addEventListener("click", () => {
         if (!lessonMode) return;
         lessonSkipped += 1;
         advanceLesson(`Skipped ${lessonOrder[lessonIndex]}.`);
       });
-      document.querySelector("#lesson-restart").addEventListener("click", startLessons);
+      document.querySelector("#lesson-restart").addEventListener("click", () => {
+        startLessonMode(lessonSandbox);
+      });
 
       previewGameButton.addEventListener("click", () => {
         debugPreview = true;
@@ -1321,6 +1637,9 @@
 
       function updateRoomUI(message = {}) {
         if (!roomState) return;
+        lessonMode = false;
+        document.body.classList.remove("lesson-active");
+        cameraStart.textContent = "Enable local ASL recognition";
         const joined = roomState.players[playerSlot];
         const otherPlayer = roomState.players[1 - playerSlot];
         const myWord = roomState.words[playerSlot];
@@ -1670,11 +1989,11 @@
         holdProgress.value = elapsed;
         lessonHoldProgress.value = elapsed;
         lessonHoldLabel.textContent = label && lessonMode
-          ? `Hold ${label} · ${(elapsed / 1000).toFixed(1)} / 0.8 seconds`
-          : "Hold the prompted sign for 0.8 seconds";
+          ? `Hold ${label} · ${(elapsed / 1000).toFixed(1)} / 1.5 seconds`
+          : "Hold the prompted sign for 1.5 seconds";
         holdLabel.textContent = label
-          ? `Hold ${label} · ${(elapsed / 1000).toFixed(1)} / 0.8 seconds`
-          : "Hold the sign for 0.8 seconds";
+          ? `Hold ${label} · ${(elapsed / 1000).toFixed(1)} / 1.5 seconds`
+          : "Hold the sign for 1.5 seconds";
         return elapsed >= holdDuration;
       }
 
@@ -1792,6 +2111,7 @@
       }
 
       cameraStart.addEventListener("click", async () => {
+        if (!menuScreen.hidden && !lessonMode) startLessonMode(false);
         if (!navigator.mediaDevices?.getUserMedia) {
           cameraStatus.textContent = "Camera access is unavailable here. Open this hosted page over HTTPS (or use localhost) in a supported browser.";
           return;
@@ -1843,6 +2163,8 @@
 
       document.addEventListener("visibilitychange", () => updateSignHold("", 0));
       window.addEventListener("pagehide", stopCamera);
+
+      showPracticeCamera();
 
       const rememberedName = localStorage.getItem("signsync:last-name") || "";
       document.querySelector("#create-name").value = rememberedName;
