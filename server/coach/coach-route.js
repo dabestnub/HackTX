@@ -3,6 +3,8 @@ const {
   buildDetailedCoachMessages,
   buildCoachChatMessages,
   buildCoachPhotoMessages,
+  buildTutorialLessonMessages,
+  buildTutorialFollowUpMessages,
   buildLetterImagePrompt,
   buildLetterImageRetryPrompt,
   buildLetterImageVerificationMessages,
@@ -104,6 +106,52 @@ function fallbackPhotoAdvice(payload) {
     hint,
     "Try this: hold the shape 2 seconds, relax, then repeat 5 times while keeping your wrist centered.",
   ].join("\n");
+}
+
+function fallbackTutorialLesson(payload) {
+  const letter = String(payload?.target || payload?.letter || "A").slice(0, 1).toUpperCase();
+  const focus = String(payload?.focus || "shape").toLowerCase();
+  if (focus === "mistakes") {
+    return [
+      `Mistake 1 for ${letter}: over-straightening fingers — curl to a natural bend before placing thumb.`,
+      "Mistake 2: thumb floats too far out — anchor thumb to the correct finger contact point.",
+      "Mistake 3: palm rotates mid-hold — lock wrist and keep one stable palm angle.",
+      "After each correction, rebuild from knuckles instead of tweaking mid-shape.",
+      "Retry drill: 3 rounds of 2 reps; hold each rep 2 seconds and reset fully between reps.",
+      "Pass when all 3 reps keep thumb position and palm angle consistent.",
+    ].join("\n");
+  }
+  if (focus === "drill") {
+    return [
+      `0-15s: Build letter ${letter} slowly, 2 reps, 2-second holds, full reset each rep.`,
+      "15-30s: Increase pace to 3 reps while preserving exact thumb and finger placement.",
+      "30-45s: Alternate eyes-open and mirror-check reps to catch palm-angle drift.",
+      "45-60s: Final 2 clean reps with no corrections mid-hold.",
+      "Success check: complete 7 total reps with stable palm orientation and no thumb drift.",
+    ].join("\n");
+  }
+  return [
+    `Set letter ${letter} with a relaxed wrist and steady hand at chest height.`,
+    "Step 1: place base finger shape before moving thumb.",
+    "Step 2: set thumb contact point with a small, controlled motion.",
+    "Step 3: rotate palm to final orientation and hold still for 2 seconds.",
+    "Step 4: check fingertips, knuckles, thumb, then wrist alignment in that order.",
+    "Self-check: no finger gaps and no palm rotation during hold.",
+    "Drill: 6 reps total — hold each rep for 2 seconds, rest 2 seconds between reps.",
+  ].join("\n");
+}
+
+function fallbackTutorialFollowUp(payload) {
+  const letter = String(payload?.target || payload?.letter || "A").slice(0, 1).toUpperCase();
+  const focus = String(payload?.focus || "shape").toLowerCase();
+  let focusLabel = "hand shape";
+  if (focus === "mistakes") focusLabel = "common mistakes";
+  if (focus === "drill") focusLabel = "drill timing";
+  return [
+    `I'm having trouble reaching Muse right now for letter ${letter}.`,
+    `Quick ${focusLabel} fallback: hold the target shape for 2 seconds, reset fully, repeat 6 reps.`,
+    "Try again in a moment for a full AI follow-up answer.",
+  ].join(" ");
 }
 
 function extractSingleLetter(text = "") {
@@ -359,6 +407,41 @@ function createCoachHandler(options = {}) {
     }
   }
 
+  async function generateTutorialLesson(payload) {
+    const fallback = fallbackTutorialLesson(payload);
+    try {
+      const text = await callMuse(buildTutorialLessonMessages(payload), 0.3);
+      const lesson = text ? sanitizeDetailedAdvice(text, fallback) : fallback;
+      return {
+        lesson,
+        source: text ? "remote" : "fallback",
+      };
+    } catch {
+      return { lesson: fallback, source: "fallback" };
+    }
+  }
+
+  async function generateTutorialFollowUp(payload) {
+    const fallback = fallbackTutorialFollowUp(payload);
+    const question = String(payload?.question || payload?.message || "").trim();
+    if (!question) {
+      return {
+        reply: "Please enter a follow-up question.",
+        source: "fallback",
+      };
+    }
+    try {
+      const text = await callMuse(buildTutorialFollowUpMessages(payload), 0.45);
+      const reply = text ? sanitizeDetailedAdvice(text, fallback) : fallback;
+      return {
+        reply,
+        source: text ? "remote" : "fallback",
+      };
+    } catch {
+      return { reply: fallback, source: "fallback" };
+    }
+  }
+
   async function generateLetterImage(payload) {
     const letter = String(payload?.letter || "").trim().toUpperCase();
     if (!/^[A-Z]$/.test(letter)) {
@@ -408,6 +491,10 @@ function createCoachHandler(options = {}) {
           response.end(JSON.stringify({ error: body.error }));
           return;
         }
+      } else if (payload.mode === "tutorial-lesson") {
+        body = await generateTutorialLesson(payload);
+      } else if (payload.mode === "tutorial-followup") {
+        body = await generateTutorialFollowUp(payload);
       } else if (isChat || payload.mode === "chat") {
         body = await generateChatReply(payload);
       } else if (payload.detailLevel === "detailed") {

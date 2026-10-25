@@ -54,6 +54,13 @@
     .step-pill { font-size: .76rem; color: #e3e9d8; }
     .lobby-form { display: grid; gap: 14px; }
     .lobby-form + .lobby-form { margin-top: 26px; padding-top: 26px; border-top: 1px solid var(--line); }
+  .tutorial-launch { margin-top: 14px; width: 100%; }
+  .tutorial-panel { margin-top: 14px; padding: 14px; border: 1px solid #949e90; background: #f8f8f2; display: grid; gap: 10px; }
+  .tutorial-panel .tutorial-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tutorial-panel .tutorial-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tutorial-panel .tutorial-output { min-height: 120px; max-height: 240px; overflow: auto; padding: 10px; border: 1px solid var(--line); background: #fff; white-space: pre-line; font-size: .82rem; }
+  .tutorial-panel .tutorial-image { width: 100%; max-width: 220px; border: 1px solid var(--line); background: #fff; }
+  .tutorial-panel .tutorial-meta { font-size: .75rem; color: var(--muted); }
     .lobby-form label, .field { display: grid; gap: 6px; font-size: .78rem; font-weight: 650; }
     .room-code-input { text-transform: uppercase; letter-spacing: .18em; font-family: monospace; }
     #preview-game { padding: 0; margin-top: 22px; min-height: 44px; border: 0; text-decoration: underline; text-underline-offset: 4px; font-size: .8rem; }
@@ -294,6 +301,35 @@
           <button type="submit" class="secondary" id="join-room">Join a room</button>
         </form>
         <button type="button" class="secondary" id="preview-game">Preview game screen</button>
+        <button type="button" class="secondary tutorial-launch" id="open-tutorial">Coach · practice a letter first</button>
+        <section class="tutorial-panel" id="tutorial-panel" hidden aria-labelledby="tutorial-title">
+          <h3 id="tutorial-title">ASL Letter Coach</h3>
+          <p class="tutorial-meta">Pick one letter and get a short AI coaching guide before joining a room.</p>
+          <div class="tutorial-controls">
+            <label for="tutorial-letter">Letter
+              <select id="tutorial-letter"></select>
+            </label>
+            <label for="tutorial-goal">Focus
+              <select id="tutorial-goal">
+                <option value="shape" selected>Hand shape basics</option>
+                <option value="mistakes">Common mistakes</option>
+                <option value="drill">Quick practice drill</option>
+              </select>
+            </label>
+          </div>
+          <div class="tutorial-actions">
+            <button type="button" id="tutorial-start">Get guide</button>
+            <button type="button" class="secondary" id="tutorial-image">Show letter reference image</button>
+            <button type="button" class="secondary" id="tutorial-close">Close</button>
+          </div>
+          <label for="tutorial-question">Follow-up question
+            <input id="tutorial-question" type="text" maxlength="220" placeholder="Optional follow-up question (e.g., Why does mine look like M?)">
+          </label>
+          <button type="button" class="secondary" id="tutorial-ask">Ask follow-up</button>
+          <p id="tutorial-status" class="tutorial-meta" role="status" aria-live="polite">Select a letter and press Get guide.</p>
+          <div id="tutorial-output" class="tutorial-output">Welcome! I can coach one letter at a time.</div>
+          <img id="tutorial-reference" class="tutorial-image" alt="ASL letter reference" hidden>
+        </section>
         <p class="muted">A sample round. No room or camera needed.</p>
         <p class="lobby-error" id="lobby-error" role="status" aria-live="polite"></p>
       </article>
@@ -483,6 +519,18 @@
       const createForm = document.querySelector("#create-form");
       const joinForm = document.querySelector("#join-form");
       const previewGameButton = document.querySelector("#preview-game");
+  const tutorialOpenButton = document.querySelector("#open-tutorial");
+  const tutorialPanel = document.querySelector("#tutorial-panel");
+  const tutorialCloseButton = document.querySelector("#tutorial-close");
+  const tutorialLetter = document.querySelector("#tutorial-letter");
+  const tutorialGoal = document.querySelector("#tutorial-goal");
+  const tutorialStartButton = document.querySelector("#tutorial-start");
+  const tutorialImageButton = document.querySelector("#tutorial-image");
+  const tutorialAskButton = document.querySelector("#tutorial-ask");
+  const tutorialQuestion = document.querySelector("#tutorial-question");
+  const tutorialStatus = document.querySelector("#tutorial-status");
+  const tutorialOutput = document.querySelector("#tutorial-output");
+  const tutorialReference = document.querySelector("#tutorial-reference");
       const notice = document.querySelector("#notice");
       const cameraPreview = document.querySelector("#camera-preview");
       const cameraStart = document.querySelector("#camera-start");
@@ -530,6 +578,8 @@
       let animationFrame = 0;
       let lastInferenceAt = 0;
       let processingFrame = false;
+  let tutorialBusy = false;
+  let tutorialChatHistory = [];
       const tutorialCoach = window.createTutorialCoach({
         canSign: () => canSign(),
         loadRecognition,
@@ -576,6 +626,265 @@
       function handleTutorialFeedback(payload) {
         tutorialCoach.handleFeedback(payload);
       }
+
+      for (const letter of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+        const option = document.createElement("option");
+        option.value = letter;
+        option.textContent = `Letter ${letter}`;
+        tutorialLetter.append(option);
+      }
+      tutorialLetter.value = "A";
+
+      function setTutorialBusy(busy, message = "") {
+        tutorialBusy = busy;
+        tutorialStartButton.disabled = busy;
+        tutorialImageButton.disabled = busy;
+        tutorialAskButton.disabled = busy;
+        tutorialOpenButton.disabled = busy;
+        if (message) tutorialStatus.textContent = message;
+      }
+
+      function resetTutorialContext(reason) {
+        tutorialChatHistory = [];
+        tutorialQuestion.value = "";
+        tutorialReference.hidden = true;
+  tutorialOutput.textContent = "Guide context reset. Press Get guide for fresh instructions.";
+        tutorialStatus.textContent = reason;
+      }
+
+      function toggleTutorialPanel(open) {
+        tutorialPanel.hidden = typeof open === "boolean" ? !open : !tutorialPanel.hidden;
+        tutorialOpenButton.textContent = tutorialPanel.hidden
+          ? "Coach · practice a letter first"
+          : "Hide tutorial";
+      }
+
+      const tutorialFocusConfig = {
+        shape: {
+          title: "Hand shape basics",
+          prompt: `Teach ASL letter {letter} to a complete beginner. Focus on exact finger, thumb, and palm orientation.`,
+          expectedSections: ["Shape map", "3-step setup", "Self-check"],
+          errors: ["fingers_not_together", "thumb_too_far"],
+        },
+        mistakes: {
+          title: "Common mistakes",
+          prompt: `Teach ASL letter {letter} by diagnosing common beginner mistakes and how to correct each one fast.`,
+          expectedSections: ["Top 3 mistakes", "Fast fixes", "Retry cue"],
+          errors: ["index_too_straight", "fingers_not_together", "thumb_too_far"],
+        },
+        drill: {
+          title: "Quick practice drill",
+          prompt: `Create a 60-second drill plan for ASL letter {letter} with reps, hold times, and pass/fail checks.`,
+          expectedSections: ["Warm-up", "Main drill", "Pass check"],
+          errors: ["hold_too_short", "confidence_low"],
+        },
+      };
+
+      function tutorialPromptFor(letter, goal, followUp = "") {
+        const config = tutorialFocusConfig[goal] || tutorialFocusConfig.shape;
+        const basePrompt = config.prompt.replaceAll("{letter}", letter);
+        const structure = [
+          `Return a practical mini-lesson for letter ${letter} with this exact structure, but do NOT include section titles or commentary labels in the response.`,
+          `Start directly with instruction. Include ${config.expectedSections[0]} in 2-3 lines.`,
+          `Then include ${config.expectedSections[1]} as numbered action steps the learner can do immediately.`,
+          `Then include ${config.expectedSections[2]} as clear pass/fail checks.`,
+          "End with one 30-60 second drill including rep count and hold duration.",
+          "No fluff, no meta wording (e.g., no 'lesson', 'notes', 'here is', 'section').",
+        ].join(" ");
+        const followUpPrompt = followUp ? ` Also answer this follow-up exactly: ${followUp}` : "";
+        return `${basePrompt} ${structure}${followUpPrompt}`;
+      }
+
+      function normalizeInstructionalText(text) {
+        if (!text) return "";
+        return String(text)
+          .replaceAll("\r", "")
+          .split("\n")
+          .map((line) => line.trim())
+          .filter((line) => line && !/^letter\s+[A-Z]\b/i.test(line) && !/^extra coaching notes:?$/i.test(line))
+          .join("\n")
+          .trim();
+      }
+
+      function formatTutorialLesson({ primary, secondary = "" }) {
+        const cleanPrimary = normalizeInstructionalText(primary);
+        const cleanSecondary = normalizeInstructionalText(secondary);
+        if (cleanSecondary) return `${cleanPrimary}\n\n${cleanSecondary}`.trim();
+        return cleanPrimary;
+      }
+
+      async function fetchTutorialLesson(followUp = "") {
+        if (tutorialBusy) return;
+        const letter = tutorialLetter.value;
+        const goal = tutorialGoal.value;
+        const focusTitle = (tutorialFocusConfig[goal] || tutorialFocusConfig.shape).title;
+  setTutorialBusy(true, `Generating ${focusTitle.toLowerCase()} guide for letter ${letter}…`);
+        tutorialOutput.textContent = `Building your ${focusTitle.toLowerCase()} guide for letter ${letter}…`;
+        tutorialReference.hidden = true;
+        try {
+          const firstResponse = await fetch("/api/coach", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              mode: "tutorial-lesson",
+              target: letter,
+              focus: goal,
+              followUp,
+              message: tutorialPromptFor(letter, goal, followUp),
+            }),
+          });
+          if (!firstResponse.ok) throw new Error("Coach service unavailable");
+          const firstBody = await firstResponse.json();
+          const primaryReply = String(firstBody?.lesson || "").trim();
+
+          let secondaryReply = "";
+          const needsExpansion = primaryReply.length < 260 || primaryReply.split("\n").length < 4;
+          if (needsExpansion) {
+            const focus = tutorialFocusConfig[goal] || tutorialFocusConfig.shape;
+            const fallbackResponse = await fetch("/api/coach", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                target: letter,
+                predicted: "",
+                confidence: 0,
+                holdMs: 0,
+                errors: focus.errors,
+                detailLevel: "detailed",
+              }),
+            });
+            if (fallbackResponse.ok) {
+              const fallbackBody = await fallbackResponse.json();
+              secondaryReply = String(fallbackBody?.advice || "").trim();
+            }
+          }
+
+          const finalLesson = formatTutorialLesson({
+            primary: primaryReply || `Let's practice letter ${letter}. Keep your hand steady and try again.`,
+            secondary: secondaryReply,
+          });
+
+          tutorialOutput.textContent = finalLesson;
+          tutorialStatus.textContent = `${focusTitle} guide ready for letter ${letter}.`;
+          tutorialChatHistory.push(
+            { role: "user", content: tutorialPromptFor(letter, goal, followUp) },
+            { role: "assistant", content: finalLesson },
+          );
+          tutorialChatHistory = tutorialChatHistory.slice(-20);
+        } catch {
+          tutorialOutput.textContent = [
+            `Quick fallback guide for letter ${letter}:`,
+            "1) Build the base finger shape first.",
+            "2) Set thumb position second and keep wrist steady.",
+            "3) Hold for 2 seconds, relax, and repeat for 6 reps.",
+            "4) Mirror-check palm angle and finger spacing each rep.",
+          ].join("\n");
+          tutorialStatus.textContent = "Tutor is temporarily unavailable. Try again in a moment.";
+        } finally {
+          setTutorialBusy(false);
+        }
+      }
+
+      async function fetchTutorialFollowUp(question) {
+        if (tutorialBusy) return;
+        const letter = tutorialLetter.value;
+        const goal = tutorialGoal.value;
+        const focusTitle = (tutorialFocusConfig[goal] || tutorialFocusConfig.shape).title;
+        setTutorialBusy(true, `Asking Muse about ${letter} (${focusTitle.toLowerCase()})…`);
+        tutorialReference.hidden = true;
+        try {
+          const response = await fetch("/api/coach", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              mode: "tutorial-followup",
+              question,
+              target: letter,
+              focus: goal,
+              messages: tutorialChatHistory,
+            }),
+          });
+          if (!response.ok) throw new Error("Coach chat unavailable");
+          const body = await response.json();
+          const reply = String(body?.reply || "").trim();
+          if (!reply) {
+            tutorialStatus.textContent = "Muse did not return an answer yet. Please try your follow-up again.";
+            return;
+          }
+          const finalReply = reply || "I couldn't generate a follow-up answer right now. Try asking again.";
+          tutorialOutput.textContent = `Follow-up answer:\n${finalReply}`;
+          tutorialStatus.textContent = body?.source === "remote"
+            ? `Muse answered your follow-up for letter ${letter}.`
+            : `Showing a fallback follow-up answer for letter ${letter} (Muse unavailable).`;
+          tutorialChatHistory.push(
+            { role: "user", content: question },
+            { role: "assistant", content: finalReply },
+          );
+          tutorialChatHistory = tutorialChatHistory.slice(-20);
+        } catch {
+          tutorialStatus.textContent = "Couldn't get a follow-up answer right now. Please try again.";
+        } finally {
+          setTutorialBusy(false);
+        }
+      }
+
+      async function fetchTutorialReferenceImage() {
+        if (tutorialBusy) return;
+        const letter = tutorialLetter.value;
+        setTutorialBusy(true, `Generating reference image for ${letter}…`);
+        try {
+          const response = await fetch("/api/coach/image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ letter }),
+          });
+          if (!response.ok) throw new Error("Image generation unavailable");
+          const body = await response.json();
+          const url = body?.image?.imageDataUrl;
+          if (!url) throw new Error("Missing image");
+          tutorialReference.src = url;
+          tutorialReference.alt = `ASL reference for letter ${letter}`;
+          tutorialReference.hidden = false;
+          tutorialStatus.textContent = `Reference image ready for ${letter}.`;
+        } catch {
+          tutorialStatus.textContent = "Couldn't generate a reference image right now. Try again shortly.";
+          tutorialReference.hidden = true;
+        } finally {
+          setTutorialBusy(false);
+        }
+      }
+
+      tutorialOpenButton.addEventListener("click", () => toggleTutorialPanel());
+      tutorialCloseButton.addEventListener("click", () => toggleTutorialPanel(false));
+      tutorialGoal.addEventListener("change", () => {
+        const goal = tutorialGoal.value;
+        const focusTitle = (tutorialFocusConfig[goal] || tutorialFocusConfig.shape).title;
+        resetTutorialContext(`Focus changed to ${focusTitle}. Press Get guide to regenerate.`);
+      });
+      tutorialLetter.addEventListener("change", () => {
+        resetTutorialContext(`Letter changed to ${tutorialLetter.value}. Press Get guide to regenerate.`);
+      });
+      tutorialStartButton.addEventListener("click", () => { void fetchTutorialLesson(); });
+      tutorialImageButton.addEventListener("click", () => { void fetchTutorialReferenceImage(); });
+      function submitTutorialFollowUp() {
+        const followUp = tutorialQuestion.value.trim();
+        if (!followUp) {
+          tutorialStatus.textContent = "Type a follow-up question first.";
+          tutorialQuestion.value = "";
+          return;
+        }
+        tutorialQuestion.value = "";
+        void fetchTutorialFollowUp(followUp);
+      }
+
+      tutorialAskButton.addEventListener("click", () => {
+        submitTutorialFollowUp();
+      });
+      tutorialQuestion.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        submitTutorialFollowUp();
+      });
 
       createForm.addEventListener("submit", (event) => {
         event.preventDefault();

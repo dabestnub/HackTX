@@ -131,6 +131,99 @@ function buildCoachPhotoMessages(payload = {}) {
   ];
 }
 
+function buildTutorialLessonMessages(payload = {}) {
+  const target = String(payload.target || payload.letter || "").slice(0, 1).toUpperCase();
+  const focus = String(payload.focus || "shape").toLowerCase();
+  const followUp = String(payload.followUp || "").slice(0, 500);
+  const focusGuidance = {
+    shape: "Focus on exact finger placement, thumb position, palm direction, and wrist alignment.",
+    mistakes: "Focus on the 3 most common beginner mistakes and direct corrections for each.",
+    drill: "Focus on a short timed practice sequence with clear rep counts and hold durations.",
+  };
+  const focusFormat = {
+    shape: [
+      "Shape focus format:",
+      "- Give exactly 4 setup steps for hand/finger/thumb/palm positioning.",
+      "- Give exactly 2 self-check cues that can be observed in a mirror.",
+      "- End with one 45-60 second drill including reps and hold duration.",
+    ].join(" "),
+    mistakes: [
+      "Mistakes focus format:",
+      "- Give exactly 3 common mistakes for this letter.",
+      "- For each mistake, provide one direct correction step in imperative voice.",
+      "- End with one 45-60 second retry drill including pass/fail cues.",
+    ].join(" "),
+    drill: [
+      "Drill focus format:",
+      "- Provide a strict 60-second timeline in four blocks: 0-15, 15-30, 30-45, 45-60 seconds.",
+      "- Include rep count, hold duration, and one measurable success check.",
+      "- Keep all lines action-oriented and concise.",
+    ].join(" "),
+  };
+
+  const system = [
+    "You are an ASL fingerspelling instructor teaching one letter to a beginner.",
+    "Return instruction-only content in imperative voice.",
+    "Do not include commentary labels, encouragement-only filler, or meta text.",
+    "Do not mention confidence, prediction, model output, feedback, or analysis.",
+    "Output 7-12 short lines with practical action steps.",
+    "Include: hand shape setup, thumb rule, palm orientation, self-check cues, and one 45-60 second drill.",
+  ].join(" ");
+
+  const user = JSON.stringify({
+    mode: "tutorial_lesson",
+    target,
+    focus,
+    guidance: focusGuidance[focus] || focusGuidance.shape,
+    requiredFormat: focusFormat[focus] || focusFormat.shape,
+    followUp,
+  });
+
+  return [
+    { role: "system", content: system },
+    { role: "user", content: user },
+  ];
+}
+
+function buildTutorialFollowUpMessages(payload = {}) {
+  const target = String(payload.target || payload.letter || "").slice(0, 1).toUpperCase();
+  const focus = String(payload.focus || "shape").toLowerCase();
+  const question = String(payload.question || payload.message || "").slice(0, 600);
+  const history = Array.isArray(payload.messages) ? payload.messages.slice(-8) : [];
+  const normalizedHistory = history
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => ({
+      role: entry.role === "assistant" ? "assistant" : "user",
+      content: String(entry.content || "").slice(0, 600),
+    }))
+    .filter((entry) => entry.content.trim());
+
+  const system = [
+    "You are Muse, an ASL fingerspelling tutor answering one follow-up question.",
+    "Give practical instruction, not meta commentary.",
+    "Use 3-7 short lines and include at least one concrete drill or correction.",
+    "Adapt to the learner's selected focus: shape, mistakes, or drill.",
+    "Avoid medical/legal/safety advice.",
+  ].join(" ");
+
+  const contextMessage = {
+    role: "user",
+    content: JSON.stringify({
+      mode: "tutorial_followup",
+      target,
+      focus,
+      question,
+    }),
+  };
+
+  return [
+    { role: "system", content: system },
+    contextMessage,
+    ...normalizedHistory,
+    { role: "user", content: question },
+  ];
+}
+
 function buildLetterImagePrompt(letter) {
   const target = String(letter || "").slice(0, 1).toUpperCase();
   const handshapeSpecs = {
@@ -247,6 +340,8 @@ module.exports = {
   buildDetailedCoachMessages,
   buildCoachChatMessages,
   buildCoachPhotoMessages,
+  buildTutorialLessonMessages,
+  buildTutorialFollowUpMessages,
   buildLetterImagePrompt,
   buildLetterImageRetryPrompt,
   buildLetterImageVerificationMessages,

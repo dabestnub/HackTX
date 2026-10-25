@@ -125,6 +125,87 @@ test("coach route supports chat replies", async () => {
   assert.match(payload.reply, /C|curve|thumb|hold/i);
 });
 
+test("coach route tutorial-lesson mode returns instructional lesson text", async () => {
+  const handler = createCoachHandler({
+    endpoint: "https://example.com/muse-text",
+    apiKey: "test-key",
+    fetchImpl: async () => ({
+      ok: true,
+      async json() {
+        return {
+          output_text: [
+            "Set your palm forward and keep your wrist neutral.",
+            "Place index and middle fingers straight up and together.",
+            "Tuck ring and pinky down, then tuck thumb across them.",
+            "Hold this shape for 2 seconds, relax for 2 seconds, repeat 6 times.",
+          ].join("\n"),
+        };
+      },
+    }),
+  });
+
+  const req = makeRequest({ mode: "tutorial-lesson", target: "U", focus: "shape" }, "/api/coach");
+  const res = makeResponse();
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  const payload = JSON.parse(res.body);
+  assert.equal(typeof payload.lesson, "string");
+  assert.match(payload.lesson, /palm|fingers|thumb|hold/i);
+});
+
+test("coach route tutorial-lesson fallback changes with focus", async () => {
+  const handler = createCoachHandler({
+    endpoint: "https://example.com/muse-text",
+    apiKey: "test-key",
+    fetchImpl: async () => ({ ok: false, async json() { return {}; } }),
+  });
+
+  const shapeReq = makeRequest({ mode: "tutorial-lesson", target: "N", focus: "shape" }, "/api/coach");
+  const shapeRes = makeResponse();
+  await handler(shapeReq, shapeRes);
+
+  const drillReq = makeRequest({ mode: "tutorial-lesson", target: "N", focus: "drill" }, "/api/coach");
+  const drillRes = makeResponse();
+  await handler(drillReq, drillRes);
+
+  assert.equal(shapeRes.statusCode, 200);
+  assert.equal(drillRes.statusCode, 200);
+  const shapePayload = JSON.parse(shapeRes.body);
+  const drillPayload = JSON.parse(drillRes.body);
+  assert.notEqual(shapePayload.lesson, drillPayload.lesson);
+  assert.match(drillPayload.lesson, /0-15s|15-30s|30-45s|45-60s/i);
+});
+
+test("coach route tutorial-followup mode returns Muse chat answer", async () => {
+  const handler = createCoachHandler({
+    endpoint: "https://example.com/muse-text",
+    apiKey: "test-key",
+    fetchImpl: async () => ({
+      ok: true,
+      async json() {
+        return {
+          output_text: "Keep your palm forward, tuck your thumb sooner, and do 5 slow reps with 2-second holds.",
+        };
+      },
+    }),
+  });
+
+  const req = makeRequest({
+    mode: "tutorial-followup",
+    target: "B",
+    focus: "mistakes",
+    question: "Why does my B look like 4?",
+  }, "/api/coach");
+  const res = makeResponse();
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  const payload = JSON.parse(res.body);
+  assert.equal(payload.source, "remote");
+  assert.match(payload.reply, /palm|thumb|reps|hold/i);
+});
+
 test("coach chat can attach a generated letter reference image when asked", async () => {
   const tinyPngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAukB9U9KcbwAAAAASUVORK5CYII=";
   const handler = createCoachHandler({
