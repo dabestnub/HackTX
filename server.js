@@ -7,8 +7,7 @@ const { WebSocketServer, WebSocket } = require("ws");
 const ROOT = __dirname;
 const PORT = Number(process.env.PORT || 8000);
 const ROUND_SECONDS = 120;
-const SCORE_PER_WORD = 100;
-const WIN_SCORE = 500;
+const POINTS_PER_LETTER = 25;
 const WORDS = [
   "CAT", "DOG", "SUN", "HAT", "HOME", "LOVE", "BIRD", "FISH", "TREE", "BOOK",
   "MOON", "STAR", "RAIN", "WIND", "LEAF", "BEAR", "FROG", "DUCK", "BOAT", "SHIP",
@@ -36,7 +35,7 @@ function randomCode() {
   return Array.from(crypto.randomBytes(6), (byte) => alphabet[byte % alphabet.length]).join("");
 }
 
-function makeRoom() {
+function makeRoom(targetScore, roundDuration = ROUND_SECONDS) {
   let code;
   do {
     code = randomCode();
@@ -49,9 +48,11 @@ function makeRoom() {
     target: randomWord(),
     letters: "",
     score: 0,
+    targetScore,
+    roundDuration,
     wordsCompleted: 0,
     deadline: null,
-    remainingMs: ROUND_SECONDS * 1000,
+    remainingMs: roundDuration * 1000,
     completedReason: null,
     actionIds: new Set(),
     lastEmptyAt: null,
@@ -81,6 +82,8 @@ function roomSnapshot(room) {
     target: room.target,
     letters: room.letters,
     score: room.score,
+    targetScore: room.targetScore,
+    roundDuration: room.roundDuration,
     wordsCompleted: room.wordsCompleted,
     secondsRemaining,
     completedReason: room.completedReason,
@@ -143,11 +146,48 @@ function fail(socket, message) {
   send(socket, { type: "error", message });
 }
 
+function validTargetScore(value) {
+  return Number.isInteger(value) && value >= 100 && value <= 5000 && value % 25 === 0;
+}
+
+function validRoundDuration(value) {
+  return [60, 120, 180, 300].includes(value);
+}
+
+function handleRestart(socket, message) {
+  const membership = sockets.get(socket);
+  if (!membership) return fail(socket, "Join a room before starting another round.");
+  const { room } = membership;
+  if (room.status !== "complete") return fail(socket, "Wait until the round has ended to play again.");
+  const targetScore = message.targetScore ?? room.targetScore;
+  if (!validTargetScore(targetScore)) return fail(socket, "Choose a points target from 100 to 5000 in steps of 25.");
+  const roundDuration = message.roundDuration ?? room.roundDuration;
+  if (!validRoundDuration(roundDuration)) return fail(socket, "Choose a round duration of 1, 2, 3, or 5 minutes.");
+  room.targetScore = targetScore;
+  room.roundDuration = roundDuration;
+  room.target = randomWord(room.target);
+  room.status = "waiting";
+  room.score = 0;
+  room.letters = "";
+  room.wordsCompleted = 0;
+  room.currentPlayer = 0;
+  room.remainingMs = roundDuration * 1000;
+  room.deadline = null;
+  room.completedReason = null;
+  // Keep prior action IDs so delayed submissions cannot count in the new round.
+  broadcast(room, "room:updated");
+  startRoom(room);
+}
+
 function handleCreate(socket, message) {
   if (sockets.has(socket)) return fail(socket, "Leave your current room before creating another.");
   const name = cleanName(message.name);
   if (!name) return fail(socket, "Enter a nickname up to 24 characters.");
-  attachPlayer(socket, makeRoom(), 0, name);
+  const targetScore = message.targetScore ?? 500;
+  if (!validTargetScore(targetScore)) return fail(socket, "Choose a points target from 100 to 5000 in steps of 25.");
+  const roundDuration = message.roundDuration ?? ROUND_SECONDS;
+  if (!validRoundDuration(roundDuration)) return fail(socket, "Choose a round duration of 1, 2, 3, or 5 minutes.");
+  attachPlayer(socket, makeRoom(targetScore, roundDuration), 0, name);
 }
 
 function handleJoin(socket, message) {
@@ -239,11 +279,11 @@ function handleLetter(socket, message) {
   if (room.letters === word) {
     completedWord = word;
     room.wordsCompleted += 1;
-    room.score = Math.min(WIN_SCORE, room.score + SCORE_PER_WORD);
+    room.score += word.length * POINTS_PER_LETTER;
     room.target = randomWord(word);
     room.letters = "";
   }
-  if (room.score >= WIN_SCORE) finishRoom(room, "score");
+  if (room.score >= room.targetScore) finishRoom(room, "score");
   else broadcast(room, "letter:accepted", { accepted: message.letter, completedWord });
 }
 
@@ -329,6 +369,8 @@ function handleMessage(socket, message) {
       broadcast(room, "room:updated");
       return;
     }
+    case "game:restart":
+      return handleRestart(socket, message);
     case "game:leave": {
       detachPlayer(socket);
       socket.close(1000, "Left room");

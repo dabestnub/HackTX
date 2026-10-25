@@ -113,7 +113,6 @@
     .player.active { border-color: var(--ink); }
     .player-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .player-name { font-weight: 700; overflow-wrap: anywhere; }
-    .turn-tag { flex-shrink: 0; padding: 4px 6px; background: var(--yellow); font: bold .6rem monospace; }
     .player-connection { color: var(--muted); font-size: .7rem; margin-top: 8px; }
     .preview { display: grid; place-items: center; min-height: 240px; margin-top: 18px; overflow: hidden; background: #dde2d5; text-align: center; }
     .preview-icon { font: 2.5rem Georgia, serif; color: #52694f; }
@@ -211,18 +210,32 @@
       <h2 id="results-title" tabindex="-1">Time’s up!</h2>
       <p>You built this score together. Stay and chat — your cameras can keep running.</p>
       <div class="results-stats">
-        <div><strong id="results-score">0</strong>Team points / 500</div>
+        <div><strong id="results-score">0</strong>Team points / <span id="results-target">500</span></div>
         <div><strong id="results-words">0</strong>Words completed</div>
       </div>
-      <p>Leaving for the lobby ends your video connection. Create a new room there to play again.</p>
+      <p>Play again in this room with your partner. Cameras stay connected.</p>
+      <form id="rematch-form">
+        <label for="rematch-target">Points needed next round</label>
+        <input id="rematch-target" type="number" min="100" max="5000" step="25" value="500" required>
+        <label for="rematch-duration">Round length</label>
+        <select id="rematch-duration">
+          <option value="60">1 minute</option>
+          <option value="120">2 minutes</option>
+          <option value="180">3 minutes</option>
+          <option value="300">5 minutes</option>
+        </select>
+        <button type="submit" id="play-again">Play again</button>
+      </form>
+      <button type="button" id="results-reconnect">Reconnect to room</button>
+      <p id="results-status" role="status" aria-live="polite"></p>
       <button type="button" id="results-menu">Back to lobby</button>
     </section>
 
     <section class="lobby" id="menu-screen" aria-labelledby="menu-title">
       <article class="card lobby-intro">
-        <p class="eyebrow">The two-minute fingerspelling game</p>
+        <p class="eyebrow">The fingerspelling game</p>
         <h2 class="lobby-title" id="menu-title">Your hands.<br>Their turn.<br><em>One word.</em></h2>
-        <p class="lobby-copy">Pull up a chair. Invite a friend. Take turns signing letters and race to 500 points before the clock runs out.</p>
+        <p class="lobby-copy">Pull up a chair. Invite a friend. Take turns signing letters and reach your points target before the clock runs out. Longer words earn more: 25 points per letter.</p>
         <div class="step-pills" aria-label="How to play">
           <span class="step-pill">1 · Make a room</span>
           <span class="step-pill">2 · Invite a friend</span>
@@ -235,6 +248,17 @@
         <form class="lobby-form" id="create-form">
           <label for="create-name">Your nickname
             <input id="create-name" name="name" maxlength="24" autocomplete="nickname" placeholder="e.g. Alex" required>
+          </label>
+          <label for="create-target">Points needed to win
+            <input id="create-target" name="targetScore" type="number" min="100" max="5000" step="25" value="500" required>
+          </label>
+          <label for="create-duration">Round length
+            <select id="create-duration" name="roundDuration">
+              <option value="60">1 minute</option>
+              <option value="120" selected>2 minutes</option>
+              <option value="180">3 minutes</option>
+              <option value="300">5 minutes</option>
+            </select>
           </label>
           <button type="submit" id="create-room">Create a room</button>
         </form>
@@ -279,7 +303,7 @@
         <div class="score-row">
           <div>
             <div class="muted">Team score</div>
-            <div class="score-number"><span id="score">0</span> <span>/ 500 points</span></div>
+            <div class="score-number"><span id="score">0</span> <span id="score-target">/ 500 points</span></div>
           </div>
           <div>
             <div class="muted">Time left</div>
@@ -322,7 +346,6 @@
       <article class="player active" id="player-one">
         <div class="player-top">
           <span class="player-name" id="player-one-name">Player 1</span>
-          <span class="turn-tag" id="tag-one">YOUR TURN</span>
         </div>
         <div class="player-connection"><span class="connection-dot" id="connection-one"></span><span id="connection-one-text">Connected</span></div>
         <div id="local-media-panel">
@@ -356,7 +379,6 @@
       <article class="player" id="player-two">
         <div class="player-top">
           <span class="player-name" id="player-two-name">Player 2</span>
-          <span class="turn-tag" id="tag-two" hidden>YOUR TURN</span>
         </div>
         <div class="player-connection"><span class="connection-dot" id="connection-two"></span><span id="connection-two-text">Waiting</span></div>
         <div class="preview" id="remote-video-preview" aria-label="Other player's camera preview">
@@ -486,7 +508,7 @@
         localStorage.setItem("signsync:last-name", name);
         leavingRoom = false;
         showLobbyError("");
-        connectAndSend({ type: "room:create", name });
+        connectAndSend({ type: "room:create", name, targetScore: Number(document.querySelector("#create-target").value), roundDuration: Number(document.querySelector("#create-duration").value) });
       });
 
       joinForm.addEventListener("submit", (event) => {
@@ -570,9 +592,21 @@
       document.querySelector("#results-menu").addEventListener("click", returnToMenu);
       document.querySelector("#reconnect-menu").addEventListener("click", returnToMenu);
       reconnectButton.addEventListener("click", reconnectRoom);
+      document.querySelector("#results-reconnect").addEventListener("click", reconnectRoom);
+      document.querySelector("#rematch-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (roomState?.status !== "complete" || debugPreview) return;
+        if (socket?.readyState !== WebSocket.OPEN) {
+          document.querySelector("#results-status").textContent = "Reconnect to the room first, then choose Play again.";
+          reconnectRoom();
+          return;
+        }
+        socket.send(JSON.stringify({type: "game:restart", targetScore: Number(document.querySelector("#rematch-target").value), roundDuration: Number(document.querySelector("#rematch-duration").value)}));
+        document.querySelector("#results-status").textContent = "Starting another round…";
+      });
 
       function reconnectRoom() {
-        if (debugPreview || !roomState || !playerToken || socket?.readyState === WebSocket.CONNECTING) return;
+        if (debugPreview || !roomState || !playerToken || socket?.readyState === WebSocket.CONNECTING || socket?.readyState === WebSocket.OPEN) return;
         leavingRoom = false;
         reconnectButton.disabled = true;
         reconnectStatus.textContent = "Reconnecting to your room…";
@@ -597,6 +631,8 @@
           target: "CAT",
           letters: "",
           score: 0,
+          targetScore: 500,
+          roundDuration: 120,
           wordsCompleted: 0,
           secondsRemaining: 120,
           completedReason: null,
@@ -662,6 +698,7 @@
             reconnectStatus.textContent = "Connection lost. Reconnect to rejoin your room. If the server restarted, return to the lobby and create a new room.";
             document.querySelector("#waiting-status").textContent = "Connection lost. Use Reconnect above to rejoin.";
             if (cameraStream) stopCamera();
+            renderResults();
           }
         });
         socket.addEventListener("error", () => {
@@ -841,6 +878,7 @@
         }
         if (["error", "letter:accepted", "game:completed", "room:joined"].includes(message.type)) submittingLetter = false;
         if (message.type === "error") {
+          document.querySelector("#results-status").textContent = message.message || "Unable to start another round.";
           if (!reconnectPanel.hidden) {
             reconnectButton.disabled = false;
             reconnectStatus.textContent = `${message.message || "Unable to reconnect."} Retry or return to the lobby to create a new room.`;
@@ -876,7 +914,17 @@
           setVideoShareStatus("Your friend stopped sharing video.");
         }
         if (message.room) {
-          roomState = message.room;
+          if (roomState?.status === "complete" && message.room.status !== "complete") {
+            lastCompletedWord = "";
+            submittingLetter = false;
+            select.value = "";
+            currentPrediction = "";
+            updateSignHold("", 0);
+            waitingForRelease = Boolean(cameraStream);
+            releaseCount = 0;
+            manualInput.open = false;
+          }
+          roomState = { ...message.room, targetScore: message.room.targetScore ?? 500, roundDuration: message.room.roundDuration ?? 120 };
           target = roomState.target;
           accepted = roomState.letters;
           currentPlayer = roomState.currentPlayer;
@@ -885,14 +933,14 @@
         if (message.type === "letter:accepted") {
           const localLetter = message.room.players[playerSlot]?.name || "A player";
           const completion = message.completedWord
-            ? ` Together you completed ${message.completedWord}! 100 points added.`
+            ? ` Together you completed ${message.completedWord}! ${message.completedWord.length * 25} points added.`
             : "";
           document.querySelector("#notice").textContent = `${localLetter} confirmed ${message.accepted}.${completion}`;
         } else if (message.type === "game:started") {
           document.querySelector("#notice").textContent = "Both players are connected. The two-minute round is on!";
         } else if (message.type === "game:completed") {
           document.querySelector("#notice").textContent = roomState.completedReason === "score"
-            ? "You reached 500 team points. Great teamwork!"
+            ? `You reached your ${roomState.targetScore}-point target. Great teamwork!`
             : "Time is up. Great teamwork!";
         }
       }
@@ -904,8 +952,16 @@
         gameScreen.classList.toggle("round-ended", complete);
         if (!complete) return;
         gameScreen.hidden = false;
-        document.querySelector("#results-title").textContent = roomState.completedReason === "time" ? "Time’s up!" : "500 points. Together.";
+        document.querySelector("#results-title").textContent = roomState.completedReason === "time" ? "Time’s up!" : `${roomState.targetScore} points. Together.`;
         document.querySelector("#results-score").textContent = roomState.score;
+        document.querySelector("#results-target").textContent = roomState.targetScore;
+        const connected = socket?.readyState === WebSocket.OPEN;
+        document.querySelector("#results-reconnect").disabled = connected || socket?.readyState === WebSocket.CONNECTING;
+        if (wasHidden) {
+          document.querySelector("#rematch-target").value = roomState.targetScore;
+          document.querySelector("#rematch-duration").value = roomState.roundDuration;
+          document.querySelector("#results-status").textContent = "";
+        }
         document.querySelector("#results-words").textContent = roomState.wordsCompleted;
         if (wasHidden) document.querySelector("#results-title").focus();
       }
@@ -971,8 +1027,11 @@
         }
         document.querySelector(".timer").textContent = `${String(Math.floor(roomState.secondsRemaining / 60)).padStart(2, "0")}:${String(roomState.secondsRemaining % 60).padStart(2, "0")}`;
         document.querySelector("#score").textContent = roomState.score;
-        document.querySelector(".progress").setAttribute("aria-valuenow", String(roomState.score));
-        document.querySelector("#progress").style.width = `${roomState.score / 5}%`;
+        document.querySelector("#score-target").textContent = `/ ${roomState.targetScore} points`;
+        document.querySelector(".progress").setAttribute("aria-valuemax", String(roomState.targetScore));
+        document.querySelector(".progress").setAttribute("aria-label", `Progress toward ${roomState.targetScore} points`);
+        document.querySelector(".progress").setAttribute("aria-valuenow", String(Math.min(roomState.score, roomState.targetScore)));
+        document.querySelector("#progress").style.width = `${Math.min(100, roomState.score / roomState.targetScore * 100)}%`;
         document.querySelector("#target-word").textContent = target;
         const slots = [...target].map((letter, index) => {
           const slot = document.createElement("span");
@@ -991,23 +1050,18 @@
         document.querySelector("#turn-warning-title").textContent = complete ? "ROUND COMPLETE"
           : isMyTurn ? "YOUR TURN" : "WAIT FOR YOUR TURN";
         document.querySelector("#turn-warning-copy").textContent = complete
-          ? "This round has ended. Create a new room to play again."
+          ? "This round has ended. Choose Play again above to start another round."
           : isMyTurn ? `Sign ${target[accepted.length]} and hold for 1.5 seconds, or use manual input.`
           : roomState.status !== "playing" ? "Waiting for both players to connect."
           : `${roomState.players[roomState.currentPlayer]?.name || "Your partner"} is signing. Your signs and manual letters won't register until it's your turn.`;
         manualStatus.textContent = debugPreview ? "Preview only — create or join a room to enter letters."
-          : complete ? "Round complete — start a new room to play again."
+          : complete ? "Round complete — choose Play again to start another round."
           : !isMyTurn ? "Wait for your turn — your partner must enter the next letter."
           : submittingLetter ? "Sending your letter…"
           : `Your turn — click ${target[accepted.length]}. Camera recognition is paused while this panel is open.`;
         if (!isMyTurn) updateSignHold("", 0);
         document.querySelector("#player-one").classList.toggle("active", roomState.currentPlayer === 0 && !complete);
         document.querySelector("#player-two").classList.toggle("active", roomState.currentPlayer === 1 && !complete);
-        for (let index = 0; index < 2; index += 1) {
-          const tag = document.querySelector(`#tag-${index === 0 ? "one" : "two"}`);
-          tag.hidden = roomState.currentPlayer !== index || complete;
-          tag.textContent = index === playerSlot ? "YOUR TURN" : "OTHER PLAYER’S TURN";
-        }
         document.querySelector("#turn-copy").textContent = complete
           ? "Round complete!"
           : roomState.status === "waiting"

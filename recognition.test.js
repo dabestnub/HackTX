@@ -146,7 +146,8 @@ test('results keep player cameras visible after timeout and show the final score
   const elements = new Map();
   const get = id => { if (!elements.has(id)) elements.set(id, {focus() {}}); return elements.get(id); };
   const context = {document: {querySelector: get}, resultsScreen: {hidden: true}, gameScreen: {hidden: false, classList: {toggle() {}}},
-    roomState: {status: 'complete', completedReason: 'time', score: 300, wordsCompleted: 3}};
+    socket: {readyState: 1}, WebSocket: {OPEN: 1, CONNECTING: 0},
+    roomState: {status: 'complete', completedReason: 'time', score: 300, wordsCompleted: 3, targetScore: 750}};
   const show = loadHelper('renderResults', context);
   show();
   assert.equal(context.resultsScreen.hidden, false);
@@ -156,7 +157,7 @@ test('results keep player cameras visible after timeout and show the final score
   assert.equal(get('#results-words').textContent, 3);
   context.roomState.completedReason = 'score';
   show();
-  assert.equal(get('#results-title').textContent, '500 points. Together.');
+  assert.equal(get('#results-title').textContent, '750 points. Together.');
   context.roomState.status = 'playing';
   show();
   assert.equal(context.resultsScreen.hidden, true);
@@ -165,7 +166,7 @@ test('results keep player cameras visible after timeout and show the final score
 test('reconnect reuses the room and player token and guards repeated clicks', () => {
   const sent = [];
   const context = {roomState: {code: 'ABC234', players: [{name: 'Alex'}]}, playerSlot: 0,
-    playerToken: 'saved-token', debugPreview: false, socket: null, WebSocket: {CONNECTING: 0},
+    playerToken: 'saved-token', debugPreview: false, socket: null, WebSocket: {CONNECTING: 0, OPEN: 1},
     reconnectButton: {}, reconnectStatus: {}, leavingRoom: true,
     connectAndSend(payload) { sent.push(payload); }, showLobbyError() {}};
   const reconnect = loadHelper('reconnectRoom', context);

@@ -103,8 +103,9 @@ test("two players share authoritative turns, words, and team score", async (t) =
   const creator = await connect(port);
   clients.push(creator);
   const created = creator.next((message) => message.type === "room:joined");
-  send(creator, { type: "room:create", name: "Alex" });
+  send(creator, { type: "room:create", name: "Alex", targetScore: 750 });
   const room = await created;
+  assert.equal(room.room.targetScore, 750);
   assert.match(room.room.code, /^[A-HJ-NP-Z2-9]{6}$/);
 
   const partner = await connect(port);
@@ -187,7 +188,7 @@ test("two players share authoritative turns, words, and team score", async (t) =
     const actor = state.currentPlayer === 0 ? reconnected : partner;
     const letter = word[state.letters.length];
     const completesWord = state.letters.length === word.length - 1;
-    const type = completesWord && state.score === 400 ? "game:completed" : "letter:accepted";
+    const type = completesWord && state.score + word.length * 25 >= state.targetScore ? "game:completed" : "letter:accepted";
     const updates = Promise.all([
       reconnected.next((message) => message.type === type),
       partner.next((message) => message.type === type),
@@ -195,7 +196,7 @@ test("two players share authoritative turns, words, and team score", async (t) =
     send(actor, { type: "letter:confirm", actionId: (actionNumber++).toString(16).padStart(16, "0"), letter });
     const [first, second] = await updates;
     assert.deepEqual(first.room, second.room);
-    assert.equal(first.room.score, state.score + (completesWord ? 100 : 0));
+    assert.equal(first.room.score, state.score + (completesWord ? word.length * 25 : 0));
     if (completesWord) {
       assert.notEqual(first.room.target, word, "consecutive words must differ");
       assert.equal(first.room.letters, "");
@@ -205,7 +206,24 @@ test("two players share authoritative turns, words, and team score", async (t) =
     }
     state = first.room;
   }
-  assert.equal(state.score, 500);
-  assert.equal(state.wordsCompleted, 5);
+  assert.ok(state.score >= 750);
+  assert.ok(state.wordsCompleted >= 6);
   assert.equal(state.completedReason, "score");
+  send(reconnected, {type: "game:restart", targetScore: -1});
+  assert.match((await reconnected.next(m => m.type === "error")).message, /points/i);
+  const restarted = Promise.all([
+    reconnected.next(m => m.type === "game:started"),
+    partner.next(m => m.type === "game:started"),
+  ]);
+  send(reconnected, {type: "game:restart", targetScore: 1000});
+  for (const message of await restarted) {
+    assert.equal(message.room.code, room.room.code);
+    assert.equal(message.room.targetScore, 1000);
+    assert.equal(message.room.score, 0);
+    assert.equal(message.room.wordsCompleted, 0);
+    assert.equal(message.room.letters, "");
+    assert.equal(message.room.secondsRemaining, 120);
+  }
+  send(partner, {type: "game:restart", targetScore: 500});
+  assert.match((await partner.next(m => m.type === "error")).message, /ended/i);
 });
