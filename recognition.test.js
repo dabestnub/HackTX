@@ -20,7 +20,7 @@ test('hold takes 1500 ms and resets on changed signs, missing hands, and frame g
   for (const id of ['hold-progress', 'lesson-hold-progress']) {
     assert.match(html, new RegExp(`id="${id}" max="1500"`));
   }
-  const context = { holdDuration, holdStartedAt: null, lastHoldAt: null, lastStableLabel: '',
+  const context = { recognizer: null, holdDuration, holdStartedAt: null, lastHoldAt: null, lastStableLabel: '',
     holdProgress: { value: 0 }, lessonHoldProgress: { value: 0 }, lessonMode: true,
     lessonHoldLabel: { textContent: '' }, holdLabel: { textContent: '' } };
   const hold = loadHelper('updateSignHold', context);

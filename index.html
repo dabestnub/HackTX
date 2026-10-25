@@ -413,7 +413,7 @@
         <div id="lesson-exercise" class="lesson-layout">
           <article class="card lesson-guide">
             <h2>Alphabet sign guide</h2>
-            <p class="muted">Use this picture to find the handshape for each letter. The classifier is an estimate and may not recognize movement-based J and Z.</p>
+            <p class="muted">Use this picture to find the handshape for each letter. Recognition is an estimate. For J and Z, make the signing motion, then hold the ending pose while the timer fills.</p>
             <img src="./signLanguage.jpg" alt="ASL fingerspelling alphabet chart showing hand signs for A through Z">
           </article>
           <article class="card lesson-practice">
@@ -603,6 +603,7 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/ort.min.js"></script>
+  <script src="./asl-recognition.js"></script>
   <script>
     (() => {
       let target = "CAT";
@@ -694,8 +695,9 @@
       let queuedIceCandidates = [];
       let offerStarted = false;
       let handLandmarker = null;
-      let classifierSession = null;
-      let classLabels = null;
+      let recognizer = null;
+      let lastRecognitionContext = "";
+      let lastVideoTime = -1;
       let currentPrediction = "";
       let predictionSource = "";
       let predictionScore = null;
@@ -1074,6 +1076,7 @@
       }
 
       function updateLessonPrompt() {
+        updateSignHold("", 0);
         const letter = lessonOrder[lessonIndex];
         lessonLetter.textContent = letter;
         lessonProgress.textContent = lessonSandbox
@@ -1887,22 +1890,7 @@
       });
 
       async function loadRecognition() {
-        if (!window.ort) {
-          throw new Error("ONNX Runtime Web did not load. Check the network connection and reload.");
-        }
-        if (!classifierSession) {
-          classifierSession = await window.ort.InferenceSession.create("./assets/asl_classifier.onnx", {
-            executionProviders: ["wasm"]
-          });
-          const response = await fetch("./assets/asl_classes.json");
-          if (!response.ok) {
-            throw new Error(`Could not load classifier labels (HTTP ${response.status}).`);
-          }
-          classLabels = await response.json();
-          if (!Array.isArray(classLabels) || classLabels.length !== 26 || classLabels.some((label) => typeof label !== "string")) {
-            throw new Error("Classifier labels are missing or invalid.");
-          }
-        }
+        if (!recognizer) recognizer = await ASLRecognition.HybridRecognizer.load(window.ort);
         if (!handLandmarker) {
           const vision = await import(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${mediaPipeVersion}/vision_bundle.mjs`);
           const fileset = await vision.FilesetResolver.forVisionTasks(mediaPipeWasm);
@@ -1917,28 +1905,10 @@
         }
       }
 
-      function normalizeLandmarks(hand) {
-        const values = new Float32Array(63);
-        let minimum = Infinity;
-        for (let index = 0; index < hand.length; index += 1) {
-          const point = hand[index];
-          const offset = index * 3;
-          values[offset] = point.x;
-          values[offset + 1] = point.y;
-          values[offset + 2] = point.z;
-          minimum = Math.min(minimum, point.x, point.y, point.z);
-        }
-        let maximum = 0;
-        for (let index = 0; index < values.length; index += 1) {
-          values[index] -= minimum;
-          maximum = Math.max(maximum, values[index]);
-        }
-        if (maximum !== 0) {
-          for (let index = 0; index < values.length; index += 1) {
-            values[index] /= maximum;
-          }
-        }
-        return values;
+      function recognitionContextKey() {
+        return lessonMode
+          ? `lesson:${lessonIndex}:${lessonOrder[lessonIndex]}`
+          : `game:${roomState?.code}:${roomState?.gameId}:${target}:${accepted}`;
       }
 
       function drawHandNodes(landmarks, video) {
@@ -1979,6 +1949,7 @@
       }
 
       function updateSignHold(label, timestamp) {
+        if (!label && timestamp === 0) recognizer?.reset();
         // A long frame gap cannot demonstrate a continuous hold.
         if (!label || label !== lastStableLabel || lastHoldAt === null || timestamp - lastHoldAt > 500) {
           holdStartedAt = label ? timestamp : null;
@@ -2003,21 +1974,28 @@
         }
         if (
           !processingFrame &&
-          timestamp - lastInferenceAt >= 100 &&
+          timestamp - lastInferenceAt >= 30 &&
+          cameraPreview.querySelector("video")?.currentTime !== lastVideoTime &&
           cameraPreview.querySelector("video")?.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
         ) {
           processingFrame = true;
           lastInferenceAt = timestamp;
           try {
             const video = cameraPreview.querySelector("video");
+            lastVideoTime = video.currentTime;
+            const frameStream = cameraStream;
             if (inferenceCanvas.width !== video.videoWidth || inferenceCanvas.height !== video.videoHeight) {
               inferenceCanvas.width = video.videoWidth;
               inferenceCanvas.height = video.videoHeight;
             }
-            // Preserve the physical hand orientation for right-hand signing.
+            // Match upstream's mirrored inference frames; keep the visible preview unchanged.
+            inferenceContext.save();
+            inferenceContext.translate(inferenceCanvas.width, 0);
+            inferenceContext.scale(-1, 1);
             inferenceContext.drawImage(video, 0, 0, inferenceCanvas.width, inferenceCanvas.height);
+            inferenceContext.restore();
             const result = handLandmarker.detectForVideo(inferenceCanvas, timestamp);
-            drawHandNodes(result.landmarks[0], video);
+            drawHandNodes(result.landmarks[0]?.map(point => ({ ...point, x: 1 - point.x })), video);
             if (roomState?.status === "playing" && !canSign()) {
               updateSignHold("", 0);
               predictionDetail.textContent = "Your word is complete. Waiting for your partner.";
@@ -2036,34 +2014,34 @@
                 ? "Waiting for both players to get ready"
                 : "Waiting for the round to start";
             } else {
-              const input = new window.ort.Tensor("float32", normalizeLandmarks(result.landmarks[0]), [1, 63]);
-              const output = await classifierSession.run({ landmarks: input });
-              if (!cameraStream || manualInput.open || document.hidden || (!lessonMode && !canSign())) {
+              const context = recognitionContextKey();
+              if (context !== lastRecognitionContext) {
+                updateSignHold("", 0);
+                lastRecognitionContext = context;
+              }
+              const generation = recognizer.generation;
+              const prediction = await recognizer.predict(result.landmarks[0], timestamp);
+              if (cameraStream !== frameStream || manualInput.open || document.hidden
+                || submittingLetter || (!lessonMode && !canSign())
+                || context !== recognitionContextKey() || generation !== recognizer.generation) {
                 updateSignHold("", 0);
                 if (cameraStream) animationFrame = requestAnimationFrame(recognizeFrame);
                 return;
               }
-              const logits = output.logits.data;
-              let maxLogit = -Infinity;
-              let predictedIndex = 0;
-              for (let index = 0; index < logits.length; index += 1) {
-                if (logits[index] > maxLogit) {
-                  maxLogit = logits[index];
-                  predictedIndex = index;
-                }
-              }
-              let exponentialTotal = 0;
-              for (const logit of logits) {
-                exponentialTotal += Math.exp(logit - maxLogit);
-              }
-              const rawScore = 1 / exponentialTotal;
-              const label = classLabels[predictedIndex];
-              predictionScore = rawScore;
-              livePrediction.textContent = label;
+              const { label, candidate, score, mode, holdingMotion } = recognizer.confirmPrediction(
+                prediction, result.landmarks[0], timestamp, holdDuration);
+              predictionScore = score;
+              livePrediction.textContent = label || "—";
               const expected = lessonMode ? lessonOrder[lessonIndex] : target[accepted.length];
-              predictionDetail.textContent = label === expected
-                ? `Model score ${(rawScore * 100).toFixed(1)}% · hold steady`
-                : lessonMode ? `Detected ${label} · prompt is ${expected}` : `Detected ${label} · sign ${expected}`;
+              predictionDetail.textContent = !label
+                ? candidate
+                ? `Possible ${candidate} · model score ${(score * 100).toFixed(1)}% (below confirmation threshold)`
+                : (mode === "motion" ? "Tracking motion — draw J or Z slowly." : "No confident letter yet. Keep your whole hand visible.")
+                : holdingMotion
+                ? `${label} motion detected · hold the ending pose`
+                : label === expected
+                ? `Model score ${(score * 100).toFixed(1)}% · ${mode === "motion" ? "finish the motion, then hold" : "hold steady"}`
+                : `Detected ${label} · ${expected === "J" || expected === "Z" ? "draw" : "sign"} ${expected}`;
               if (updateSignHold(lessonMode || label === expected ? label : "", timestamp)) {
                 if (lessonMode) {
                   recordLessonAttempt(label);
@@ -2092,6 +2070,8 @@
         cancelAnimationFrame(animationFrame);
         cameraStream?.getTracks().forEach((track) => track.stop());
         cameraStream = null;
+        lastVideoTime = -1;
+        lastRecognitionContext = "";
         handLandmarker?.close();
         handLandmarker = null;
         updateSignHold("", 0);
@@ -2122,7 +2102,7 @@
         try {
           cameraStream = await navigator.mediaDevices.getUserMedia({
             audio: false,
-            video: { facingMode: "user" }
+            video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } }
           });
           const video = document.createElement("video");
           video.autoplay = true;

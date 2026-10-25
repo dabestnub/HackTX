@@ -33,8 +33,10 @@ const GENERATED_PATH = /^\/generated\/([0-9a-f]{32})$/;
 const PUBLIC_FILES = new Set([
   "/index.html",
   "/signLanguage.jpg",
-  "/assets/asl_classes.json",
-  "/assets/asl_classifier.onnx",
+  "/asl-recognition.js",
+  "/assets/asl_model_config.json",
+  "/assets/asl_static.onnx",
+  "/assets/asl_motion.onnx",
   "/assets/signsync-logo.jpg",
   "/assets/signsync-logo-green.png",
 ]);
