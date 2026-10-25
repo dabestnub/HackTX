@@ -52,56 +52,35 @@ test('random lesson order contains each alphabet letter once', () => {
 test('automatic submission validates the local word and prevents duplicate sends', () => {
   const sent = [];
   const context = { roomState: { status: 'playing', words: ['CAT', 'DOG'], letters: ['', ''] }, playerSlot: 0,
-    debugPreview: false, submittingLetter: false, socket: {readyState: 1, send: data => sent.push(JSON.parse(data))},
-    WebSocket: {OPEN: 1}, select: {value: 'B'}, target: 'CAT', accepted: '', notice: {},
-    predictionSource: 'camera', pendingSource: '', currentPrediction: 'C', waitingForRelease: false,
+    submittingLetter: false, socket: {readyState: 1, send: data => sent.push(JSON.parse(data))},
+    WebSocket: {OPEN: 1}, target: 'CAT', accepted: '', notice: {},
+    currentPrediction: 'B', waitingForRelease: false,
     livePrediction: {}, predictionDetail: {}, crypto: {getRandomValues: array => require('node:crypto').randomFillSync(array)}, Uint8Array, render() {} };
   context.canSign = loadHelper('canSign', context);
   const submit = loadHelper('submitLetter', context);
   submit();
   assert.equal(sent.length, 0);
-  context.select.value = 'C';
+  context.currentPrediction = 'C';
   submit();
   assert.equal(sent.length, 1);
   assert.equal(sent[0].letter, 'C');
   assert.match(sent[0].actionId, /^[a-f0-9]{32}$/);
   assert.equal(context.waitingForRelease, true);
-  context.select.value = 'C';
+  context.currentPrediction = 'C';
   submit();
   assert.equal(sent.length, 1);
   context.submittingLetter = false;
-  context.select.value = 'C';
+  context.currentPrediction = 'C';
   context.socket.send = () => { throw new Error('Disconnected'); };
   submit();
   assert.equal(context.submittingLetter, false);
-  assert.equal(context.select.value, 'C');
+  assert.equal(context.currentPrediction, 'C');
   assert.match(context.notice.textContent, /try again/i);
   context.roomState.letters[0] = 'CAT';
   submit();
   assert.equal(sent.length, 1);
 });
 
-
-test('manual letters submit with the camera enabled while the keypad is open', () => {
-  let submissions = 0;
-  const context = { debugPreview: false, submittingLetter: false, cameraStream: {},
-    roomState: {status: 'playing', words: ['CAT', 'DOG'], letters: ['', '']}, playerSlot: 0,
-    manualInput: {open: true}, select: {value: ''}, currentPrediction: '', predictionSource: '',
-    livePrediction: {}, predictionDetail: {}, notice: {},
-    submitLetter() { submissions += 1; } };
-  context.canSign = loadHelper('canSign', context);
-  const enter = loadHelper('enterManualLetter', context);
-  enter('C');
-  assert.equal(submissions, 1);
-  assert.equal(context.select.value, 'C');
-  assert.equal(context.predictionSource, 'manual');
-  context.roomState.letters[0] = 'CAT';
-  enter('A');
-  assert.equal(submissions, 1);
-  context.manualInput.open = false;
-  enter('A');
-  assert.equal(submissions, 1);
-});
 
 test('copy uses the room code and offers selectable text when clipboard access fails', async () => {
   let copied;
@@ -133,28 +112,25 @@ test('each player sees their own word and cannot sign after finishing it', () =>
     roomState: {status: 'playing', code: 'ABC234', words: ['CAT', 'DOG'], letters: ['', ''], score: 0,
       targetScore: 500, roundDuration: 120, wordsCompleted: 0, secondsRemaining: 120, pendingRematch: null,
       picture: null, pictureJob: null, players: [{name: 'Alex', connected: true}, {name: 'Sam', connected: true}]},
-    playerSlot: 0, debugPreview: false, submittingLetter: false, cameraStream: {},
+    playerSlot: 0, submittingLetter: false, cameraStream: {},
     socket: {readyState: 1}, WebSocket: {OPEN: 1}, peerConnection: null, videoShareStream: null,
-    target: 'CAT', accepted: '', debugKeypad: {children: [node()]},
+    target: 'CAT', accepted: '',
     updateSignHold() {}, renderResults() {}, updateGameTheme() {},
   };
   context.canSign = loadHelper('canSign', context);
   context.buildSlots = loadHelper('buildSlots', context);
   for (const key of ['menuScreen', 'waitingScreen', 'gameScreen', 'localMediaPanel', 'remoteVideoPreview',
-    'manualStatus', 'select', 'resetButton', 'cameraStart', 'videoShareStart', 'videoShareStop', 'videoShareStatus']) context[key] = node();
+    'cameraStart', 'videoShareStart', 'videoShareStop', 'videoShareStatus']) context[key] = node();
   const render = loadHelper('updateRoomUI', context);
   render();
   assert.equal(context.lessonMode, false);
   assert.equal(get('#turn-warning').hidden, false);
   assert.match(get('#turn-warning-copy').textContent, /Sign C/);
   assert.equal(get('#partner-label').textContent, "Sam's word: DOG");
-  assert.equal(context.debugKeypad.children[0].disabled, false);
-  assert.match(context.manualStatus.textContent, /click C/i);
   context.roomState.letters[0] = 'CAT';
   render();
   assert.equal(get('#turn-warning').hidden, false);
   assert.match(get('#turn-warning-copy').textContent, /finished CAT.*Sam/);
-  assert.equal(context.debugKeypad.children[0].disabled, true);
   context.roomState.showPartner = false;
   context.roomState.words[1] = '';
   context.roomState.picture = {words: ['CAT', ''], url: '/generated/test'};
@@ -192,7 +168,7 @@ test('results keep player cameras visible after timeout and show the final score
 test('reconnect reuses the room and player token and guards repeated clicks', () => {
   const sent = [];
   const context = {roomState: {code: 'ABC234', players: [{name: 'Alex'}]}, playerSlot: 0,
-    playerToken: 'saved-token', debugPreview: false, socket: null, WebSocket: {CONNECTING: 0, OPEN: 1},
+    playerToken: 'saved-token', socket: null, WebSocket: {CONNECTING: 0, OPEN: 1},
     reconnectButton: {}, reconnectStatus: {}, leavingRoom: true,
     connectAndSend(payload) { sent.push(payload); }, showLobbyError() {}};
   const reconnect = loadHelper('reconnectRoom', context);
@@ -281,17 +257,6 @@ test('stopping video in hidden mode does not offer sharing again', async () => {
   context.stopVideoShare(false);
   assert.equal(context.videoShareStart.hidden, false);
   assert.equal(context.videoShareStart.disabled, false);
-});
-
-test('opening manual input marks the player ready without enabling their camera', () => {
-  const sent = [];
-  const context = {debugPreview: false, roomState: {showPartner: false}, socket: {readyState: 1, send: data => sent.push(JSON.parse(data))},
-    WebSocket: {OPEN: 1}, manualInput: {open: true}, cameraStream: null, updateSignHold() {}, render() {}};
-  const toggle = loadHelper('updateManualInput', context);
-  toggle();
-  context.manualInput.open = false;
-  toggle();
-  assert.deepEqual(sent, [{type: 'manual:ready', ready: true}, {type: 'manual:ready', ready: false}]);
 });
 
 test('completed word pairs change the palette once, reset for new games, and respect reduced motion', () => {

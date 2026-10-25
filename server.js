@@ -151,7 +151,6 @@ function roomSnapshot(room, slot) {
       name: player.name,
       connected: player.connected,
       aslReady: player.aslReady,
-      manualReady: player.manualReady,
       videoSharing: player.videoReady,
       rematchReady: player.rematchReady,
     })),
@@ -198,7 +197,7 @@ function startRoom(room) {
     room.status = "ready";
     broadcast(room, "room:updated");
   }
-  if (room.status !== "ready" || !room.players.every((player) => (player.aslReady || player.manualReady) && (!room.showPartner || player.videoReady))) return;
+  if (room.status !== "ready" || !room.players.every((player) => player.aslReady && (!room.showPartner || player.videoReady))) return;
   room.status = "playing";
   room.deadline = Date.now() + room.remainingMs;
   broadcast(room, "game:started");
@@ -217,7 +216,6 @@ function attachPlayer(socket, room, slot, name, reconnectToken = null) {
     reconnectToken: token,
     connected: true,
     aslReady: false,
-    manualReady: false,
     videoReady: false,
     rematchReady: false,
     socket,
@@ -669,15 +667,6 @@ function handleMessage(socket, message) {
       return handleLetter(socket, message);
     case "video:ready":
       return handleVideoReady(socket);
-    case "manual:ready": {
-      const membership = sockets.get(socket);
-      if (!membership || typeof message.ready !== "boolean") return fail(socket, "Join a room and choose manual input.");
-      const { room, slot } = membership;
-      room.players[slot].manualReady = message.ready;
-      broadcast(room, "room:updated");
-      if (message.ready) startRoom(room);
-      return;
-    }
     case "asl:ready":
       return handleAslReady(socket, true);
     case "asl:stop":

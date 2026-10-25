@@ -79,8 +79,6 @@
     .tutorial-panel .tutorial-meta { font-size: .75rem; color: var(--muted); }
     .lobby-form label, .tutorial-panel label, .field { display: grid; width: 100%; min-width: 0; gap: 6px; font-size: .78rem; font-weight: 650; }
     .room-code-input { text-transform: uppercase; letter-spacing: .18em; font-family: monospace; }
-    #preview-game { padding: 0; margin-top: 12px; min-height: 44px; border: 0; text-decoration: underline; text-underline-offset: 4px; font-size: .8rem; }
-    .lobby-panel > p.preview-help { margin: 4px 0 12px; font-size: .75rem; }
     .lobby-panel > p.lobby-error { color: #a02c21; margin-bottom: 0; }
     .lesson-screen { position: fixed; inset: 0; z-index: 20; overflow: auto; width: 100%; min-height: 100vh; min-height: 100dvh; margin: 0; border-radius: 0; padding: clamp(24px, 5vw, 64px); background: var(--paper); }
     .lesson-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
@@ -140,7 +138,6 @@
     .game-topbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
     .game-room-label { font: .8rem monospace; }
     .leave-room { font-size: .8rem; }
-    .debug-preview-note { margin-bottom: 20px; padding: 12px 16px; border-left: 3px solid #957022; background: #eae4cb; font-size: .8rem; }
     .game-over { display: none; background: #dce8cb; padding: 16px; margin-bottom: 20px; }
     .game-over.visible { display: block; }
     .game-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-areas: "stage rail"; gap: 32px; align-items: start; }
@@ -195,14 +192,6 @@
     .controls-card { margin-top: 24px; padding: 24px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
     .controls-card h2 { font: 1.6rem Georgia, serif; }
     .controls-card > .muted { margin-top: 10px; max-width: 620px; font-size: .8rem; }
-    .controls { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
-    .controls button { font-size: .76rem; }
-    .field { min-width: 130px; }
-    .debug-input { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 14px; }
-    .debug-input summary { cursor: pointer; min-height: 44px; font-size: .85rem; font-weight: 650; }
-    .debug-input p { color: var(--muted); font-size: .78rem; margin-bottom: 12px; }
-    .debug-keypad { display: grid; grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)); gap: 6px; }
-    .debug-keypad button { padding: 8px; }
     .notice { margin-top: 18px; font-size: .8rem; }
     .completed { color: #2b6a3e; font-weight: bold; }
     .image-card { border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; background: var(--surface); }
@@ -239,7 +228,6 @@
     }
     @media (max-width: 480px) {
       .players, .room-players { grid-template-columns: 1fr; }
-      .controls > * { flex: 1 1 130px; }
       .play-modes { grid-template-columns: 1fr; }
       .lobby-form, .tutorial-panel .tutorial-controls { grid-template-columns: 1fr; }
       .lobby-tools { grid-template-columns: 1fr 1fr; }
@@ -373,8 +361,6 @@
           <button type="button" class="secondary" id="open-tutorial">ASL Fingerspelling Lessons</button>
           <button type="button" id="start-lessons">Ask Letter Practice</button>
         </div>
-        <button type="button" class="secondary" id="preview-game">Preview game screen</button>
-        <p class="preview-help muted">A sample round. No room or camera needed.</p>
         <p class="lobby-error" id="lobby-error" role="status" aria-live="polite"></p>
         </article>
       </section>
@@ -427,7 +413,7 @@
         <div id="lesson-exercise" class="lesson-layout">
           <article class="card lesson-guide">
             <h2>Alphabet sign guide</h2>
-            <p class="muted">Use this picture to find the handshape for each letter. Recognition is an estimate. For J and Z, make the signing motion, then hold the ending pose while the timer fills.</p>
+            <p class="muted">Use this picture to find the handshape for each letter. Recognition is an estimate, and P might not work reliably.</p>
             <img src="./signLanguage.jpg" alt="ASL fingerspelling alphabet chart showing hand signs for A through Z">
           </article>
           <article class="card lesson-practice">
@@ -482,7 +468,6 @@
       <p class="game-room-label">Room <strong id="game-room-code"></strong> · <span id="game-connection">Connecting…</span></p>
       <button type="button" class="secondary leave-room" id="leave-room">Leave room</button>
     </div>
-    <p class="debug-preview-note" id="debug-preview-note" role="status" hidden>Debug preview · sample room only; camera and multiplayer actions are disabled.</p>
     <div class="game-over" id="game-over" role="status" aria-live="polite"></div>
 
     <section class="signing-status" aria-label="Current sign and hold progress">
@@ -583,37 +568,14 @@
 
     <section class="card controls-card" aria-labelledby="controls-title">
       <h2 id="controls-title">Hold to register</h2>
-      <p class="muted">Hold the expected sign steady until the timer completes. The server checks your word and letter. Manual input is for testing.</p>
-      <div class="controls">
-        <label class="field" for="prediction" hidden>Detected letter
-          <select id="prediction" disabled>
-            <option value="">No prediction</option>
-            <option value="A">A</option><option value="B">B</option><option value="C">C</option>
-            <option value="D">D</option><option value="E">E</option><option value="F">F</option>
-            <option value="G">G</option><option value="H">H</option><option value="I">I</option>
-            <option value="J">J</option><option value="K">K</option><option value="L">L</option>
-            <option value="M">M</option><option value="N">N</option><option value="O">O</option>
-            <option value="P">P</option><option value="Q">Q</option><option value="R">R</option>
-            <option value="S">S</option><option value="T">T</option><option value="U">U</option>
-            <option value="V">V</option><option value="W">W</option><option value="X">X</option>
-            <option value="Y">Y</option><option value="Z">Z</option>
-          </select>
-        </label>
-        <button type="button" class="secondary" id="reset">Reset demo</button>
-      </div>
-      <details class="debug-input" id="manual-input">
-        <summary>Debug · enter a letter manually</summary>
-        <p>Click the expected letter to submit it immediately. Camera recognition pauses while this panel is open. This is test input, not ASL recognition.</p>
-        <p id="manual-status" role="status" aria-live="polite"></p>
-        <div class="debug-keypad" id="debug-keypad" role="group" aria-label="Debug letter input"></div>
-      </details>
-      <p class="notice" id="notice" role="status" aria-live="polite">Hold the expected sign to begin, or open manual input to test.</p>
+      <p class="muted">Hold the expected sign steady until the timer completes. The server checks your word and letter.</p>
+      <p class="notice" id="notice" role="status" aria-live="polite">Hold the expected sign to begin.</p>
     </section>
 
     </div>
     </div>
     </div>
-    <p class="fine-print">ASL inference runs locally in your browser. Live video is private unless you explicitly choose Share live video; when shared, it streams peer-to-peer and is not relayed or stored by the game server. Multiplayer signaling, confirmed letters, and game state pass through the room server. Recognition can be inaccurate and is not full ASL translation; motion-dependent J/Z recognition is not verified.</p>
+    <p class="fine-print">ASL inference runs locally in your browser. Live video is private unless you explicitly choose Share live video; when shared, it streams peer-to-peer and is not relayed or stored by the game server. Multiplayer signaling, confirmed letters, and game state pass through the room server. Recognition can be inaccurate and is not full ASL translation; P might not work reliably.</p>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/ort.min.js"></script>
@@ -634,9 +596,7 @@
       let playerSlot = null;
       let socket = null;
       let playerToken = null;
-      let debugPreview = false;
       let roomRequestPending = false;
-      let pendingSource = "";
       let leavingRoom = false;
       const holdDuration = 1500;
       const mediaPipeVersion = "0.10.14";
@@ -644,19 +604,13 @@
       const handLandmarkerModel = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
       const acceptedSources = [];
 
-      const select = document.querySelector("#prediction");
-      const debugKeypad = document.querySelector("#debug-keypad");
-      const manualInput = document.querySelector("#manual-input");
-      const manualStatus = document.querySelector("#manual-status");
       const copyButton = document.querySelector("#copy-invite");
       const copyStatus = document.querySelector("#copy-status");
       const copyFallback = document.querySelector("#copy-fallback");
       const holdProgress = document.querySelector("#hold-progress");
       const holdLabel = document.querySelector("#hold-label");
-      const resetButton = document.querySelector("#reset");
       const createForm = document.querySelector("#create-form");
       const joinForm = document.querySelector("#join-form");
-      const previewGameButton = document.querySelector("#preview-game");
       const tutorialLetter = document.querySelector("#tutorial-letter");
       const tutorialGoal = document.querySelector("#tutorial-goal");
       const tutorialStartButton = document.querySelector("#tutorial-start");
@@ -715,7 +669,6 @@
       let lastRecognitionContext = "";
       let lastVideoTime = -1;
       let currentPrediction = "";
-      let predictionSource = "";
       let predictionScore = null;
       let lastStableLabel = "";
       let holdStartedAt = null;
@@ -1023,8 +976,8 @@
         cameraStart.textContent = "Enable local ASL recognition";
         setRoomRequestPending(false);
         const code = roomState?.code;
-        if (code && !debugPreview) sessionStorage.removeItem(`signsync:${code}:token`);
-        if (!debugPreview && socket?.readyState === WebSocket.OPEN) {
+        if (code) sessionStorage.removeItem(`signsync:${code}:token`);
+        if (socket?.readyState === WebSocket.OPEN) {
           socket.send(JSON.stringify({ type: "game:leave" }));
           socket.close();
         }
@@ -1033,14 +986,11 @@
         roomState = null;
         playerSlot = null;
         playerToken = null;
-        debugPreview = false;
-        manualInput.open = false;
         copyStatus.textContent = "";
         copyFallback.hidden = true;
         submittingLetter = false;
         leavingRoom = true;
         document.querySelector("#leave-room").textContent = "Leave room";
-        document.querySelector("#debug-preview-note").hidden = true;
         menuScreen.hidden = false;
         homeLobby.hidden = false;
         lessonScreen.hidden = true;
@@ -1170,7 +1120,7 @@
       reconnectButton.addEventListener("click", reconnectRoom);
       document.querySelector("#rematch-form").addEventListener("submit", (event) => {
         event.preventDefault();
-        if (roomState?.status !== "complete" || debugPreview) return;
+        if (roomState?.status !== "complete") return;
         if (socket?.readyState !== WebSocket.OPEN) {
           document.querySelector("#results-status").textContent = "Reconnect to the room first, then choose Play again.";
           reconnectRoom();
@@ -1181,7 +1131,7 @@
       });
 
       function reconnectRoom() {
-        if (debugPreview || !roomState || !playerToken || socket?.readyState === WebSocket.CONNECTING || socket?.readyState === WebSocket.OPEN) return;
+        if (!roomState || !playerToken || socket?.readyState === WebSocket.CONNECTING || socket?.readyState === WebSocket.OPEN) return;
         leavingRoom = false;
         reconnectButton.disabled = true;
         reconnectStatus.textContent = "Reconnecting to your room…";
@@ -1200,36 +1150,6 @@
       });
       document.querySelector("#lesson-restart").addEventListener("click", () => {
         startLessonMode(lessonSandbox);
-      });
-
-      previewGameButton.addEventListener("click", () => {
-        debugPreview = true;
-        playerSlot = 0;
-        roomState = {
-          code: "PREVIEW",
-          status: "playing",
-          players: [
-            { name: "Player 1", connected: true, videoSharing: false },
-            { name: "Player 2", connected: true, videoSharing: false },
-          ],
-          words: ["CAT", "DOG"],
-          letters: ["", ""],
-          score: 0,
-          targetScore: 500,
-          roundDuration: 120,
-          wordsCompleted: 0,
-          secondsRemaining: 120,
-          completedReason: null,
-        };
-        accepted = "";
-        target = roomState.words[playerSlot];
-        menuScreen.hidden = true;
-        waitingScreen.hidden = true;
-        gameScreen.hidden = false;
-        document.querySelector("#debug-preview-note").hidden = false;
-        document.querySelector("#leave-room").textContent = "Back to lobby";
-        document.querySelector("#notice").textContent = "Previewing a sample started game. No room has been created.";
-        updateRoomUI();
       });
 
       function showLobbyError(message = "") {
@@ -1511,10 +1431,8 @@
         if (message.room) {
           if (roomState?.status === "complete" && message.room.status !== "complete") {
             submittingLetter = false;
-            select.value = "";
             currentPrediction = "";
             updateSignHold("", 0);
-            manualInput.open = false;
           }
           roomState = { ...message.room, targetScore: message.room.targetScore ?? 500, roundDuration: message.room.roundDuration ?? 120 };
           target = roomState.words[playerSlot] || "";
@@ -1678,21 +1596,17 @@
         const partnerWord = roomState.words[1 - playerSlot];
         const partnerLetters = roomState.letters[1 - playerSlot];
         const hiddenPartner = roomState.showPartner === false;
-        const readyInstruction = hiddenPartner ? "Enable ASL recognition or open Debug · enter a letter manually to start. Your camera stays on this device; your partner and their word are hidden." : "Enable ASL recognition or open manual input, and share live video to start.";
+        const readyInstruction = hiddenPartner ? "Enable ASL recognition to start. Your camera stays on this device; your partner and their word are hidden." : "Enable ASL recognition and share live video to start.";
         const waiting = roomState.status === "waiting";
         menuScreen.hidden = true;
         waitingScreen.hidden = !waiting;
         gameScreen.hidden = waiting;
         renderResults();
         const connectedPlayers = roomState.players.filter((player) => player?.connected).length;
-        document.querySelector("#site-status").textContent = debugPreview
-          ? "Debug preview · sample game"
-          : `Room ${roomState.code} · ${connectedPlayers}/2 players`;
+        document.querySelector("#site-status").textContent = `Room ${roomState.code} · ${connectedPlayers}/2 players`;
         document.querySelector("#room-code").textContent = roomState.code;
         document.querySelector("#game-room-code").textContent = roomState.code;
-        document.querySelector("#game-connection").textContent = debugPreview
-          ? "Preview only"
-          : socket?.readyState === WebSocket.OPEN ? "Connected" : "Reconnecting…";
+        document.querySelector("#game-connection").textContent = socket?.readyState === WebSocket.OPEN ? "Connected" : "Reconnecting…";
         document.querySelector("#waiting-status").textContent = roomState.players.every((player) => player?.connected)
           ? `Both players connected. ${readyInstruction}`
           : "Waiting for another player to join…";
@@ -1715,7 +1629,7 @@
             player?.name || `Player ${index + 1}`;
           document.querySelector(`#connection-${playerId}`).classList.toggle("online", Boolean(player?.connected));
           document.querySelector(`#connection-${playerId}-text`).textContent = !player?.connected ? "Waiting"
-            : `${player.aslReady ? "ASL ready" : player.manualReady ? "Manual ready" : "Enable ASL or manual input"} · ${hiddenPartner ? "Hidden mode" : player.videoSharing ? "Video shared" : "Share video"}`;
+            : `${player.aslReady ? "ASL ready" : "Enable ASL recognition"} · ${hiddenPartner ? "Hidden mode" : player.videoSharing ? "Video shared" : "Share video"}`;
         }
         const localPlayerPanel = document.querySelector(playerSlot === 0 ? "#player-one" : "#player-two");
         const remotePlayerPanel = document.querySelector(playerSlot === 0 ? "#player-two" : "#player-one");
@@ -1762,18 +1676,11 @@
         document.querySelector("#turn-warning").classList.toggle("ready", isMyTurn || complete);
         document.querySelector("#turn-warning-copy").textContent = complete
           ? "This round has ended. Choose Play again above to start another round."
-          : isMyTurn ? `Sign ${target[accepted.length]} and hold until the timer completes, or use manual input.`
+          : isMyTurn ? `Sign ${target[accepted.length]} and hold until the timer completes.`
           : myWordDone ? `You've finished ${myWord}. Waiting for ${otherPlayer?.name || "your partner"} to finish their word.`
           : roomState.status === "ready" ? `${readyInstruction} The timer starts when both players are ready.`
           : roomState.status === "waiting" ? "Waiting for both players to connect."
           : "Your partner is signing their word.";
-        manualStatus.textContent = debugPreview ? "Preview only — create or join a room to enter letters."
-          : complete ? "Round complete — choose Play again to start another round."
-          : roomState.status === "ready" ? readyInstruction
-          : roomState.status === "waiting" ? "Waiting for both players to connect."
-          : myWordDone ? `Waiting for ${otherPlayer?.name || "your partner"} to finish their word.`
-          : submittingLetter ? "Sending your letter…"
-          : `Click ${target[accepted.length]}. Camera recognition is paused while this panel is open.`;
         if (!isMyTurn) updateSignHold("", 0);
         document.querySelector("#player-one").classList.toggle("active", roomState.status === "playing" && roomState.letters[0] !== roomState.words[0]);
         document.querySelector("#player-two").classList.toggle("active", roomState.status === "playing" && roomState.letters[1] !== roomState.words[1]);
@@ -1819,15 +1726,7 @@
             ? `You reached ${roomState.score} team points in ${roomState.wordsCompleted} words!`
             : `Time is up · ${roomState.score} team points across ${roomState.wordsCompleted} words.`
           : "";
-        for (const button of debugKeypad.children) {
-          button.disabled = debugPreview || submittingLetter || !isMyTurn;
-        }
-        select.disabled = debugPreview || !select.value || !isMyTurn || Boolean(cameraStream) || complete;
-        resetButton.hidden = true;
-        cameraStart.disabled = debugPreview;
-        videoShareStart.disabled = debugPreview || hiddenPartner;
-        document.querySelector("#debug-preview-note").hidden = !debugPreview;
-        document.querySelector("#leave-room").textContent = debugPreview ? "Back to lobby" : "Leave room";
+        videoShareStart.disabled = hiddenPartner;
         if (message.type === "room:joined" && joined && roomState.players.filter(Boolean).length === 1) {
           document.querySelector("#waiting-status").textContent = "Room created. Share the code with one friend.";
         }
@@ -1853,44 +1752,14 @@
         });
       }
 
-      for (const letter of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "secondary";
-        button.textContent = letter;
-        button.disabled = true;
-        button.addEventListener("click", () => enterManualLetter(letter));
-        debugKeypad.append(button);
-      }
-
-      manualInput.addEventListener("toggle", updateManualInput);
-
-      function updateManualInput() {
-        if (!debugPreview && roomState && socket?.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({ type: "manual:ready", ready: manualInput.open }));
-        }
-        updateSignHold("", 0);
-        render();
-      }
-
-      function enterManualLetter(letter) {
-        if (!manualInput.open || debugPreview || submittingLetter || !canSign()) return;
-        select.value = letter;
-        currentPrediction = letter;
-        predictionSource = "manual";
-        livePrediction.textContent = letter;
-        predictionDetail.textContent = "Manual input · not camera recognition";
-        submitLetter();
-      }
-
       function submitLetter() {
-        if (debugPreview || submittingLetter || !canSign() || !socket || socket.readyState !== WebSocket.OPEN) return;
+        if (submittingLetter || !canSign() || !socket || socket.readyState !== WebSocket.OPEN) return;
         const expected = target[accepted.length];
-        if (select.value !== expected) {
+        if (currentPrediction !== expected) {
           notice.textContent = `That is not the next letter in this word. Expected ${expected}; try that sign again.`;
           return;
         }
-        const confirmedLetter = select.value;
+        const confirmedLetter = currentPrediction;
         try {
           const actionId = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join("");
           submittingLetter = true;
@@ -1901,21 +1770,12 @@
           render();
           return;
         }
-        pendingSource = predictionSource;
-        select.value = "";
         currentPrediction = "";
-        predictionSource = "";
-        if (pendingSource === "camera") {
-          livePrediction.textContent = "—";
-          predictionDetail.textContent = "Letter sent. Ready for the next sign.";
-        }
+        livePrediction.textContent = "—";
+        predictionDetail.textContent = "Letter sent. Ready for the next sign.";
         notice.textContent = "Registering your letter…";
         render();
       }
-
-      resetButton.addEventListener("click", () => {
-        showLobbyError("The server owns multiplayer round state. Leave the room to start over.");
-      });
 
       async function loadRecognition() {
         if (!recognizer) recognizer = await ASLRecognition.HybridRecognizer.load(window.ort);
@@ -2027,9 +1887,6 @@
             if (roomState?.status === "playing" && !canSign()) {
               updateSignHold("", 0);
               predictionDetail.textContent = "Your word is complete. Waiting for your partner.";
-            } else if (manualInput.open) {
-              updateSignHold("", 0);
-              predictionDetail.textContent = "Recognition paused — close manual input to resume signing.";
             } else if (!result.landmarks.length) {
               updateSignHold("", 0);
               livePrediction.textContent = "—";
@@ -2049,7 +1906,7 @@
               }
               const generation = recognizer.generation;
               const prediction = await recognizer.predict(result.landmarks[0], timestamp);
-              if (cameraStream !== frameStream || manualInput.open || document.hidden
+              if (cameraStream !== frameStream || document.hidden
                 || submittingLetter || (!lessonMode && !canSign())
                 || context !== recognitionContextKey() || generation !== recognizer.generation) {
                 updateSignHold("", 0);
@@ -2075,8 +1932,6 @@
                   recordLessonAttempt(label);
                 } else {
                   currentPrediction = label;
-                  predictionSource = "camera";
-                  select.value = label;
                   submitLetter();
                 }
               }
@@ -2110,9 +1965,7 @@
         cameraStart.hidden = false;
         cameraStop.hidden = true;
         currentPrediction = "";
-        predictionSource = "";
         predictionScore = null;
-        select.value = "";
         livePrediction.textContent = "—";
         predictionDetail.textContent = "No stable handshape yet";
         render();

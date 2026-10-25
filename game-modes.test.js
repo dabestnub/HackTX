@@ -114,20 +114,6 @@ test('wrong guesses generate a private hint once and allow a correct retry', asy
   assert.equal(requests, 1);
 });
 
-test('hidden game starts when both players open manual input, without cameras', () => {
-  const game = loadGame();
-  const room = game.makeRoom(500, 120, false);
-  const a = socket(), b = socket();
-  game.attachPlayer(a, room, 0, 'Alex');
-  game.attachPlayer(b, room, 1, 'Sam');
-  game.handleMessage(a, {type: 'manual:ready', ready: true});
-  assert.equal(room.status, 'ready');
-  game.handleMessage(b, {type: 'manual:ready', ready: true});
-  assert.equal(room.status, 'playing');
-  game.handleLetter(a, {actionId: '0000000000000001', letter: room.words[0][0]});
-  assert.equal(room.letters[0], room.words[0][0]);
-});
-
 test('hint API accepts usable clues and rejects errors, empty text, and answer leaks', async () => {
   const game = loadGame();
   game.process = {env: {META_MUSE_API_KEY: 'test-key'}};
