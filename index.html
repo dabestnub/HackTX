@@ -598,7 +598,7 @@
           return;
         }
         socket.send(JSON.stringify({type: "game:restart", targetScore: Number(document.querySelector("#rematch-target").value), roundDuration: Number(document.querySelector("#rematch-duration").value)}));
-        document.querySelector("#results-status").textContent = "Starting another round…";
+        document.querySelector("#results-status").textContent = "Waiting for your partner to press Play again…";
       });
 
       function reconnectRoom() {
@@ -955,6 +955,27 @@
           document.querySelector("#rematch-target").value = roomState.targetScore;
           document.querySelector("#rematch-duration").value = roomState.roundDuration;
           document.querySelector("#results-status").textContent = "";
+        }
+        const rematchTarget = document.querySelector("#rematch-target");
+        const rematchDuration = document.querySelector("#rematch-duration");
+        const playAgain = document.querySelector("#play-again");
+        const meReady = Boolean(roomState.players[playerSlot]?.rematchReady);
+        const partner = roomState.players[1 - playerSlot];
+        if (roomState.pendingRematch) {
+          rematchTarget.value = roomState.pendingRematch.targetScore;
+          rematchDuration.value = roomState.pendingRematch.roundDuration;
+          rematchTarget.disabled = true;
+          rematchDuration.disabled = true;
+          playAgain.disabled = meReady;
+          playAgain.textContent = meReady ? "Waiting for partner…" : "Confirm Play again";
+          document.querySelector("#results-status").textContent = meReady
+            ? "Waiting for your partner to press Play again…"
+            : `${partner?.name || "Your partner"} is ready for ${roomState.pendingRematch.targetScore} points in ${roomState.pendingRematch.roundDuration / 60} minutes. Press Play again to confirm.`;
+        } else {
+          rematchTarget.disabled = false;
+          rematchDuration.disabled = false;
+          playAgain.disabled = false;
+          playAgain.textContent = "Play again";
         }
         document.querySelector("#results-words").textContent = roomState.wordsCompleted;
         if (wasHidden) document.querySelector("#results-title").focus();

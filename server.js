@@ -54,6 +54,7 @@ function makeRoom(targetScore, roundDuration = ROUND_SECONDS) {
     deadline: null,
     remainingMs: roundDuration * 1000,
     completedReason: null,
+    pendingRematch: null,
     actionIds: new Set(),
     lastEmptyAt: null,
   };
@@ -78,7 +79,9 @@ function roomSnapshot(room) {
       connected: player.connected,
       aslReady: player.aslReady,
       videoSharing: player.videoReady,
+      rematchReady: player.rematchReady,
     })),
+    pendingRematch: room.pendingRematch,
     currentPlayer: room.currentPlayer,
     target: room.target,
     letters: room.letters,
@@ -128,6 +131,7 @@ function attachPlayer(socket, room, slot, name, reconnectToken = null) {
     connected: true,
     aslReady: false,
     videoReady: false,
+    rematchReady: false,
     socket,
     slot,
   };
@@ -170,15 +174,24 @@ function handleRestart(socket, message) {
   if (!validTargetScore(targetScore)) return fail(socket, "Choose a points target from 100 to 5000 in steps of 25.");
   const roundDuration = message.roundDuration ?? room.roundDuration;
   if (!validRoundDuration(roundDuration)) return fail(socket, "Choose a round duration of 1, 2, 3, or 5 minutes.");
-  room.targetScore = targetScore;
-  room.roundDuration = roundDuration;
+  const player = room.players[membership.slot];
+  if (!room.pendingRematch) room.pendingRematch = { targetScore, roundDuration };
+  player.rematchReady = true;
+  if (!room.players.every((entry) => entry?.connected && entry.rematchReady)) {
+    broadcast(room, "room:updated");
+    return;
+  }
+  room.targetScore = room.pendingRematch.targetScore;
+  room.roundDuration = room.pendingRematch.roundDuration;
+  room.pendingRematch = null;
+  for (const entry of room.players) entry.rematchReady = false;
   room.target = randomWord(room.target);
   room.status = "waiting";
   room.score = 0;
   room.letters = "";
   room.wordsCompleted = 0;
   room.currentPlayer = 0;
-  room.remainingMs = roundDuration * 1000;
+  room.remainingMs = room.roundDuration * 1000;
   room.deadline = null;
   room.completedReason = null;
   // Keep prior action IDs so delayed submissions cannot count in the new round.
