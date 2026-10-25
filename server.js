@@ -22,8 +22,8 @@ const WORDS = [
   "CAKE", "MILK", "PEAR", "APPLE", "BREAD", "SMILE", "HAPPY", "LIGHT", "GREEN", "BLUE",
   "RED", "GOLD", "HAND", "WAVE", "PLAY", "SONG", "DREAM", "CLOUD", "WATER", "EARTH",
 ];
-const IMAGE_ENDPOINT = process.env.META_MUSE_ENDPOINT || "https://api.meta.ai/v1/images/generations";
-const IMAGE_MODEL = process.env.META_MUSE_MODEL || "muse-image-1.0";
+const IMAGE_ENDPOINT = process.env.META_MUSE_IMAGE_ENDPOINT || process.env.META_MUSE_ENDPOINT || "https://api.meta.ai/v1/images/generations";
+const IMAGE_MODEL = process.env.META_MUSE_IMAGE_MODEL || process.env.META_MUSE_MODEL || "muse-image-1.0";
 const IMAGE_SIZE = process.env.META_MUSE_SIZE || "1024x1024";
 const IMAGE_TIMEOUT_MS = Number(process.env.IMAGE_TIMEOUT_MS || 120_000);
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
@@ -403,7 +403,7 @@ async function requestImage(words) {
     signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
   });
   if (!response.ok) {
-    console.error(`Image API error ${response.status}: ${(await response.text()).slice(0, 300)}`);
+    console.error(`Image API error ${response.status} (${IMAGE_MODEL}): ${(await response.text()).slice(0, 300)}`);
     throw new ImageError("The picture service couldn't make this picture.");
   }
   const encoded = (await response.json())?.data?.[0]?.b64_json;

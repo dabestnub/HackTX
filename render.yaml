@@ -12,3 +12,5 @@ services:
         value: production
       - key: META_MUSE_API_KEY
         sync: false
+      - key: META_MUSE_IMAGE_MODEL
+        value: muse-image-1.0
