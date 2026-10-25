@@ -58,6 +58,23 @@
     .room-code-input { text-transform: uppercase; letter-spacing: .18em; font-family: monospace; }
     #preview-game { padding: 0; margin-top: 22px; min-height: 44px; border: 0; text-decoration: underline; text-underline-offset: 4px; font-size: .8rem; }
     .lobby-panel > p.lobby-error { color: #a02c21; margin-bottom: 0; }
+    .lesson-screen { margin: 32px 0; }
+    .lesson-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
+    .lesson-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); gap: 28px; align-items: start; }
+    .lesson-guide, .lesson-practice, .lesson-summary { padding: clamp(20px, 3vw, 36px); }
+    .lesson-guide img { display: block; width: 100%; margin-top: 20px; }
+    .lesson-practice h2 { font: 2rem Georgia, serif; margin: 12px 0; }
+    .lesson-letter { display: block; color: var(--ink); font: 6rem/1 Georgia, serif; margin: 18px 0; }
+    .lesson-status { min-height: 3em; margin: 16px 0; color: var(--muted); }
+    .lesson-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+    .lesson-mode-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+    .lesson-hold { display: grid; gap: 6px; margin: 18px 0; font-size: .8rem; }
+    .lesson-summary h2 { font: clamp(2.5rem, 6vw, 4.5rem)/1.1 Georgia, serif; margin: 16px 0; }
+    .lesson-summary .results-stats { color: var(--paper); }
+    .lesson-summary .results-stats strong { color: var(--yellow); }
+    body.lesson-active #video-share-start, body.lesson-active #video-share-stop,
+    body.lesson-active #video-share-status { display: none !important; }
+    @media (max-width: 700px) { .lesson-layout { grid-template-columns: 1fr; } }
     .fine-print { border-top: 1px solid var(--line); margin: 32px 0 0; padding: 20px 0 28px; color: var(--muted); font-size: .72rem; max-width: 100%; }
     .results-screen { max-width: 760px; margin: 48px auto; padding: clamp(24px, 5vw, 56px); background: var(--ink); color: var(--paper); }
     .results-screen h2 { font: clamp(2.5rem, 6vw, 4.5rem)/1.1 Georgia, serif; margin: 20px 0; }
@@ -295,9 +312,60 @@
         </form>
         <button type="button" class="secondary" id="preview-game">Preview game screen</button>
         <p class="muted">A sample round. No room or camera needed.</p>
+        <button type="button" class="secondary" id="start-lessons">Learn ASL letters</button>
         <p class="lobby-error" id="lobby-error" role="status" aria-live="polite"></p>
       </article>
     </section>
+
+    <section class="lesson-screen" id="lesson-screen" hidden aria-labelledby="lesson-title">
+      <div class="lesson-toolbar">
+        <div>
+          <p class="eyebrow">Learn at your own pace</p>
+          <h2 id="lesson-title" tabindex="-1">ASL fingerspelling lessons</h2>
+        </div>
+        <button type="button" class="secondary" id="lessons-back">Back to home</button>
+      </div>
+      <div class="lesson-mode-actions" aria-label="Choose practice mode">
+        <button type="button" class="secondary" id="lesson-alphabet-mode">Alphabet lesson</button>
+        <button type="button" class="secondary" id="lesson-sandbox-mode">Random sandbox</button>
+      </div>
+      <div id="lesson-exercise" class="lesson-layout">
+        <article class="card lesson-guide">
+          <h2>Alphabet sign guide</h2>
+          <p class="muted">Use this picture to find the handshape for each letter. The classifier is an estimate and may not recognize movement-based J and Z.</p>
+          <img src="./signLanguage.jpg" alt="ASL fingerspelling alphabet chart showing hand signs for A through Z">
+        </article>
+        <article class="card lesson-practice">
+          <p class="eyebrow" id="lesson-progress">Letter 1 of 26</p>
+          <h2>Try this letter</h2>
+          <strong class="lesson-letter" id="lesson-letter">A</strong>
+          <p class="muted">Enable local ASL recognition, then hold the sign steady for 1 second. Your camera is processed in this browser.</p>
+          <div class="lesson-hold">
+            <label for="lesson-hold-progress" id="lesson-hold-label">Hold the prompted sign for 1 second</label>
+            <progress id="lesson-hold-progress" max="1000" value="0" aria-labelledby="lesson-hold-label"></progress>
+          </div>
+          <p class="lesson-status" id="lesson-status" role="status" aria-live="polite">Start the camera when you’re ready.</p>
+          <div class="lesson-actions">
+            <button type="button" class="secondary" id="lesson-skip">Skip this letter</button>
+            <button type="button" class="secondary" id="lesson-finish-sandbox" hidden>Finish sandbox</button>
+          </div>
+          <div id="lesson-camera-slot"></div>
+        </article>
+      </div>
+      <article class="card lesson-summary" id="lesson-summary" hidden>
+        <p class="eyebrow">Lesson complete</p>
+        <h2>Nice work!</h2>
+        <p>You reached the end of the alphabet. Here’s how you did:</p>
+        <div class="results-stats">
+          <div><strong id="lesson-correct">0</strong>Correct</div>
+          <div><strong id="lesson-wrong">0</strong>Wrong</div>
+          <div><strong id="lesson-skipped">0</strong>Skipped</div>
+        </div>
+        <button type="button" id="lesson-restart">Practice again</button>
+      </article>
+    </section>
+
+
 
     <section class="card waiting-card" id="waiting-screen" hidden aria-labelledby="waiting-title">
       <p class="eyebrow">Room is ready</p>
@@ -324,8 +392,8 @@
             <span id="turn-warning-copy"></span>
           </div>
           <div class="hold-meter">
-            <label for="hold-progress" id="hold-label">Hold the sign for 1.5 seconds</label>
-            <progress id="hold-progress" max="1500" value="0" aria-labelledby="hold-label"></progress>
+            <label for="hold-progress" id="hold-label">Hold the sign for 1 second</label>
+            <progress id="hold-progress" max="1000" value="0" aria-labelledby="hold-label"></progress>
           </div>
           <div class="prediction-readout" aria-live="polite">
             <span class="prediction-letter" id="live-prediction">—</span>
@@ -386,6 +454,7 @@
           <span class="player-name" id="player-one-name">Player 1</span>
         </div>
         <div class="player-connection"><span class="connection-dot" id="connection-one"></span><span id="connection-one-text">Connected</span></div>
+        <div id="local-media-placeholder"></div>
         <div id="local-media-panel">
           <div class="preview" id="camera-preview" aria-label="Camera preview">
             <div><div class="preview-icon" aria-hidden="true">◎</div><p>Your camera is off. Enable it when you're ready.</p></div>
@@ -416,7 +485,7 @@
 
     <section class="card controls-card" aria-labelledby="controls-title">
       <h2 id="controls-title">Hold to register</h2>
-      <p class="muted">Hold the expected sign steady for 1.5 seconds to register it automatically, then lower your hand before the next letter. The server checks your word and letter. Manual input is for testing.</p>
+      <p class="muted">Hold the expected sign steady for 1 second to register it automatically, then lower your hand before the next letter. The server checks your word and letter. Manual input is for testing.</p>
       <div class="controls">
         <label class="field" for="prediction" hidden>Detected letter
           <select id="prediction" disabled>
@@ -454,6 +523,14 @@
     (() => {
       let target = "CAT";
       let accepted = "";
+      const lessonAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      let lessonOrder = [...lessonAlphabet];
+      let lessonMode = false;
+      let lessonSandbox = false;
+      let lessonIndex = 0;
+      let lessonCorrect = 0;
+      let lessonWrong = 0;
+      let lessonSkipped = 0;
       let roomState = null;
       let playerSlot = null;
       let socket = null;
@@ -501,6 +578,16 @@
       const waitingScreen = document.querySelector("#waiting-screen");
       const gameScreen = document.querySelector("#game-screen");
       const resultsScreen = document.querySelector("#results-screen");
+      const lessonScreen = document.querySelector("#lesson-screen");
+      const lessonExercise = document.querySelector("#lesson-exercise");
+      const lessonSummary = document.querySelector("#lesson-summary");
+      const lessonLetter = document.querySelector("#lesson-letter");
+      const lessonProgress = document.querySelector("#lesson-progress");
+      const lessonStatus = document.querySelector("#lesson-status");
+      const lessonHoldProgress = document.querySelector("#lesson-hold-progress");
+      const lessonHoldLabel = document.querySelector("#lesson-hold-label");
+      const localMediaPlaceholder = document.querySelector("#local-media-placeholder");
+      const lessonCameraSlot = document.querySelector("#lesson-camera-slot");
       const reconnectPanel = document.querySelector("#reconnect-panel");
       const reconnectButton = document.querySelector("#reconnect-room");
       const reconnectStatus = document.querySelector("#reconnect-status");
@@ -583,6 +670,10 @@
       function returnToMenu() {
         if (cameraStream) stopCamera();
         stopVideoShare();
+        lessonMode = false;
+        document.body.classList.remove("lesson-active");
+        localMediaPlaceholder.after(localMediaPanel);
+        cameraStart.textContent = "Enable local ASL recognition";
         setRoomRequestPending(false);
         const code = roomState?.code;
         if (code && !debugPreview) sessionStorage.removeItem(`signsync:${code}:token`);
@@ -607,12 +698,127 @@
         waitingScreen.hidden = true;
         gameScreen.hidden = true;
         resultsScreen.hidden = true;
+        lessonScreen.hidden = true;
+        lessonExercise.hidden = false;
+        lessonSummary.hidden = true;
         reconnectPanel.hidden = true;
         document.querySelector("#site-status").textContent = "Multiplayer · make a room";
         const url = new URL(location.href);
         url.searchParams.delete("room");
         history.replaceState(null, "", url);
         showLobbyError("");
+      }
+
+      function startLessons() {
+        startLessonMode(false);
+      }
+
+      function startSandbox() {
+        startLessonMode(true);
+      }
+
+      function startLessonMode(randomOrder) {
+        if (cameraStream) stopCamera();
+        lessonMode = true;
+        lessonSandbox = randomOrder;
+        lessonOrder = randomOrder ? shuffledLessonAlphabet() : [...lessonAlphabet];
+        lessonIndex = 0;
+        lessonCorrect = 0;
+        lessonWrong = 0;
+        lessonSkipped = 0;
+        menuScreen.hidden = true;
+        waitingScreen.hidden = true;
+        gameScreen.hidden = true;
+        resultsScreen.hidden = true;
+        reconnectPanel.hidden = true;
+        lessonScreen.hidden = false;
+        lessonExercise.hidden = false;
+        lessonSummary.hidden = true;
+        document.body.classList.add("lesson-active");
+        lessonCameraSlot.append(localMediaPanel);
+        cameraStart.textContent = "Start lesson camera";
+        updateLessonPrompt();
+        lessonStatus.textContent = randomOrder
+          ? "Random sandbox: sign each prompt, or finish whenever you like."
+          : "Start the camera when you’re ready.";
+      }
+
+      function shuffledLessonAlphabet() {
+        const shuffled = [...lessonAlphabet];
+        for (let index = shuffled.length - 1; index > 0; index -= 1) {
+          const swapIndex = Math.floor(Math.random() * (index + 1));
+          [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+        }
+        return shuffled;
+      }
+
+      function updateLessonPrompt() {
+        const letter = lessonOrder[lessonIndex];
+        lessonLetter.textContent = letter;
+        lessonProgress.textContent = lessonSandbox
+          ? `Random sandbox · ${lessonIndex + 1} of ${lessonOrder.length}`
+          : `Letter ${lessonIndex + 1} of ${lessonOrder.length}`;
+        document.querySelector("#lesson-skip").disabled = !lessonMode;
+        document.querySelector("#lesson-finish-sandbox").hidden = !lessonSandbox;
+        lessonHoldProgress.value = 0;
+        lessonHoldLabel.textContent = "Hold the prompted sign for 1 second";
+      }
+
+      function waitForLessonHandRelease() {
+        updateSignHold("", 0);
+        if (cameraStream) {
+          waitingForRelease = true;
+          releaseCount = 0;
+        }
+      }
+
+      function advanceLesson(feedback) {
+        waitForLessonHandRelease();
+        lessonIndex += 1;
+        if (lessonIndex >= lessonOrder.length && !lessonSandbox) {
+          finishLessons();
+          return;
+        }
+        if (lessonIndex >= lessonOrder.length) {
+          const lastLetter = lessonOrder.at(-1);
+          lessonOrder = shuffledLessonAlphabet();
+          if (lessonOrder[0] === lastLetter) {
+            [lessonOrder[0], lessonOrder[1]] = [lessonOrder[1], lessonOrder[0]];
+          }
+          lessonIndex = 0;
+        }
+        updateLessonPrompt();
+        lessonStatus.textContent = `${feedback} Next up: ${lessonOrder[lessonIndex]}.`;
+      }
+
+      function recordLessonAttempt(letter) {
+        const expected = lessonOrder[lessonIndex];
+        if (letter === expected) {
+          lessonCorrect += 1;
+          advanceLesson(`Correct! You signed ${expected}.`);
+        } else {
+          lessonWrong += 1;
+          waitForLessonHandRelease();
+          lessonStatus.textContent = `The model detected ${letter}. Try ${expected} again, or skip it.`;
+        }
+      }
+
+      function finishLessons() {
+        lessonMode = false;
+        document.body.classList.remove("lesson-active");
+        if (cameraStream) stopCamera();
+        localMediaPlaceholder.after(localMediaPanel);
+        cameraStart.textContent = "Enable local ASL recognition";
+        lessonExercise.hidden = true;
+        lessonSummary.hidden = false;
+        document.querySelector("#lesson-correct").textContent = lessonCorrect;
+        document.querySelector("#lesson-wrong").textContent = lessonWrong;
+        document.querySelector("#lesson-skipped").textContent = lessonSkipped;
+        document.querySelector("#lesson-summary h2").textContent = lessonSandbox ? "Sandbox complete!" : "Nice work!";
+        document.querySelector("#lesson-summary > p:not(.eyebrow)").textContent = lessonSandbox
+          ? "Here’s how you did in random-order practice:"
+          : "You reached the end of the alphabet. Here’s how you did:";
+        document.querySelector("#lesson-title").focus();
       }
 
       document.querySelector("#results-menu").addEventListener("click", returnToMenu);
@@ -641,6 +847,17 @@
 
       document.querySelector("#cancel-room").addEventListener("click", returnToMenu);
       document.querySelector("#leave-room").addEventListener("click", returnToMenu);
+      document.querySelector("#start-lessons").addEventListener("click", startLessons);
+      document.querySelector("#lesson-alphabet-mode").addEventListener("click", startLessons);
+      document.querySelector("#lesson-sandbox-mode").addEventListener("click", startSandbox);
+      document.querySelector("#lesson-finish-sandbox").addEventListener("click", finishLessons);
+      document.querySelector("#lessons-back").addEventListener("click", returnToMenu);
+      document.querySelector("#lesson-skip").addEventListener("click", () => {
+        if (!lessonMode) return;
+        lessonSkipped += 1;
+        advanceLesson(`Skipped ${lessonOrder[lessonIndex]}.`);
+      });
+      document.querySelector("#lesson-restart").addEventListener("click", startLessons);
 
       previewGameButton.addEventListener("click", () => {
         debugPreview = true;
@@ -1201,7 +1418,7 @@
         document.querySelector("#turn-warning").classList.toggle("ready", isMyTurn || complete);
         document.querySelector("#turn-warning-copy").textContent = complete
           ? "This round has ended. Choose Play again above to start another round."
-          : isMyTurn ? `Sign ${target[accepted.length]} and hold for 1.5 seconds, or use manual input.`
+          : isMyTurn ? `Sign ${target[accepted.length]} and hold for 1 second, or use manual input.`
           : myWordDone ? `You've finished ${myWord}. Waiting for ${otherPlayer?.name || "your partner"} to finish their word.`
           : roomState.status === "ready" ? `${readyInstruction} The timer starts when both players are ready.`
           : roomState.status === "waiting" ? "Waiting for both players to connect."
@@ -1425,9 +1642,13 @@
         lastHoldAt = label ? timestamp : null;
         const elapsed = holdStartedAt === null ? 0 : Math.min(holdDuration, timestamp - holdStartedAt);
         holdProgress.value = elapsed;
+        lessonHoldProgress.value = elapsed;
+        lessonHoldLabel.textContent = label && lessonMode
+          ? `Hold ${label} · ${(elapsed / 1000).toFixed(1)} / 1 second`
+          : "Hold the prompted sign for 1 second";
         holdLabel.textContent = label
-          ? `Hold ${label} · ${(elapsed / 1000).toFixed(1)} / 1.5 seconds`
-          : "Hold the sign for 1.5 seconds";
+          ? `Hold ${label} · ${(elapsed / 1000).toFixed(1)} / 1 second`
+          : "Hold the sign for 1 second";
         return elapsed >= holdDuration;
       }
 
@@ -1480,15 +1701,17 @@
             } else if (waitingForRelease) {
               releaseCount = 0;
               predictionDetail.textContent = "Release your hand to re-arm";
-            } else if (document.hidden || submittingLetter || !canSign()) {
+            } else if (document.hidden || submittingLetter || (!lessonMode && !canSign())) {
               updateSignHold("", 0);
-              predictionDetail.textContent = roomState?.status === "ready"
+              predictionDetail.textContent = lessonMode
+                ? "Recognition is paused while this tab is hidden."
+                : roomState?.status === "ready"
                 ? "Waiting for both players to get ready"
                 : "Waiting for the round to start";
             } else {
               const input = new window.ort.Tensor("float32", normalizeLandmarks(result.landmarks[0]), [1, 63]);
               const output = await classifierSession.run({ landmarks: input });
-              if (!cameraStream || manualInput.open || document.hidden || !canSign()) {
+              if (!cameraStream || manualInput.open || document.hidden || (!lessonMode && !canSign())) {
                 updateSignHold("", 0);
                 if (cameraStream) animationFrame = requestAnimationFrame(recognizeFrame);
                 return;
@@ -1510,15 +1733,19 @@
               const label = classLabels[predictedIndex];
               predictionScore = rawScore;
               livePrediction.textContent = label;
-              const expected = target[accepted.length];
+              const expected = lessonMode ? lessonOrder[lessonIndex] : target[accepted.length];
               predictionDetail.textContent = label === expected
                 ? `Model score ${(rawScore * 100).toFixed(1)}% · hold steady`
-                : `Detected ${label} · sign ${expected}`;
-              if (updateSignHold(label === expected ? label : "", timestamp)) {
-                currentPrediction = label;
-                predictionSource = "camera";
-                select.value = label;
-                submitLetter();
+                : lessonMode ? `Detected ${label} · prompt is ${expected}` : `Detected ${label} · sign ${expected}`;
+              if (updateSignHold(lessonMode || label === expected ? label : "", timestamp)) {
+                if (lessonMode) {
+                  recordLessonAttempt(label);
+                } else {
+                  currentPrediction = label;
+                  predictionSource = "camera";
+                  select.value = label;
+                  submitLetter();
+                }
               }
             }
           } catch (error) {
@@ -1583,7 +1810,9 @@
           cameraStatus.textContent = "Loading the local hand detector and classifier…";
           await loadRecognition();
           render();
-          cameraStatus.textContent = "Local recognition is on. Hold the expected sign for 1.5 seconds to register it, then lower your hand.";
+          cameraStatus.textContent = lessonMode
+            ? "Local recognition is on. Hold the prompted sign for 1 second to check it."
+            : "Local recognition is on. Hold the expected sign for 1 second to register it, then lower your hand.";
           if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "asl:ready" }));
           animationFrame = requestAnimationFrame(recognizeFrame);
         } catch (error) {
