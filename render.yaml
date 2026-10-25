@@ -14,3 +14,5 @@ services:
         sync: false
       - key: META_MUSE_IMAGE_MODEL
         value: muse-image-1.0
+      - key: META_MUSE_IMAGE_ENDPOINT
+        value: https://api.meta.ai/v1/images/generations
