@@ -36,11 +36,13 @@ const PUBLIC_FILES = new Set([
   "/assets/asl_classes.json",
   "/assets/asl_classifier.onnx",
   "/assets/signsync-logo.jpg",
+  "/assets/signsync-logo-green.png",
 ]);
 const MIME_TYPES = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
   ".jpg": "image/jpeg",
+  ".png": "image/png",
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".onnx": "application/octet-stream",

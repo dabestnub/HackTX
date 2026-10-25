@@ -262,7 +262,7 @@
   <main class="page">
     <header>
       <div class="brand">
-        <img class="brand-mark" src="./assets/signsync-logo.jpg" alt="" aria-hidden="true">
+        <img class="brand-mark" src="./assets/signsync-logo-green.png" alt="" aria-hidden="true">
         <div>
           <h1>SignSync</h1>
         </div>
@@ -334,7 +334,7 @@
         <p>Create a private room or enter a friend’s six-character code.</p>
         <form class="lobby-form" id="create-form">
           <label for="create-name">Your nickname
-            <input id="create-name" name="name" maxlength="24" autocomplete="nickname" placeholder="e.g. Alex" required>
+            <input id="create-name" name="name" maxlength="24" autocomplete="nickname" required>
           </label>
           <label class="half-field" for="create-target">Points needed to win
             <input id="create-target" name="targetScore" type="number" min="100" max="5000" step="25" value="500" required>
@@ -358,10 +358,10 @@
         </form>
         <form class="lobby-form" id="join-form">
           <label class="half-field" for="join-name">Nickname
-            <input id="join-name" name="name" maxlength="24" autocomplete="nickname" placeholder="e.g. Jamie" required>
+            <input id="join-name" name="name" maxlength="24" autocomplete="nickname" required>
           </label>
           <label class="half-field" for="join-code">Room code
-            <input class="room-code-input" id="join-code" name="code" maxlength="6" autocomplete="off" placeholder="ABC234" required>
+            <input class="room-code-input" id="join-code" name="code" maxlength="6" autocomplete="off" required>
           </label>
           <button type="submit" id="join-room">Join a room</button>
         </form>
@@ -2167,8 +2167,6 @@
       showPracticeCamera();
 
       const rememberedName = localStorage.getItem("signsync:last-name") || "";
-      document.querySelector("#create-name").value = rememberedName;
-      document.querySelector("#join-name").value = rememberedName;
       const inviteCode = new URL(location.href).searchParams.get("room");
       if (inviteCode) {
         document.querySelector("#join-code").value = inviteCode.toUpperCase();
