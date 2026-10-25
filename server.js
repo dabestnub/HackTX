@@ -21,8 +21,11 @@ const WORDS_PER_ROUND = 2; // one word per player
 const WIN_SCORE = 500;
 // J and Z are motion letters the single-frame classifier can't recognise, so no word uses them.
 const WORDS = [
-  "CAR", "DOG", "SUN", "BUS", "HAT", "MAP", "PEN", "BED", "CUP", "FOX",
-  "TREE", "BIRD", "FISH", "MOON", "STAR", "BOAT", "CAKE", "RAIN", "FROG", "LAMP",
+  "CAT", "DOG", "SUN", "HAT", "HOME", "LOVE", "BIRD", "FISH", "TREE", "BOOK",
+  "MOON", "STAR", "RAIN", "WIND", "LEAF", "BEAR", "FROG", "DUCK", "BOAT", "SHIP",
+  "CAKE", "MILK", "PEAR", "APPLE", "BREAD", "SMILE", "HAPPY", "LIGHT", "GREEN", "BLUE",
+  "RED", "GOLD", "HAND", "WAVE", "PLAY", "SONG", "DREAM", "CLOUD", "WATER", "EARTH",
+  "CAR", "BUS", "MAP", "PEN", "BED", "CUP", "FOX", "LAMP",
 ];
 
 // Picture generation (Meta Muse image API). The key is only ever read here, on the server.
