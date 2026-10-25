@@ -76,6 +76,7 @@ function roomSnapshot(room) {
     players: room.players.map((player) => player && ({
       name: player.name,
       connected: player.connected,
+      aslReady: player.aslReady,
       videoSharing: player.videoReady,
     })),
     currentPlayer: room.currentPlayer,
@@ -102,7 +103,12 @@ function broadcast(room, type, extra = {}) {
 }
 
 function startRoom(room) {
-  if (room.status !== "waiting" || !room.players.every((player) => player?.connected)) return;
+  if (!room.players.every((player) => player?.connected)) return;
+  if (room.status === "waiting") {
+    room.status = "ready";
+    broadcast(room, "room:updated");
+  }
+  if (room.status !== "ready" || !room.players.every((player) => player.aslReady && player.videoReady)) return;
   room.status = "playing";
   room.deadline = Date.now() + room.remainingMs;
   broadcast(room, "game:started");
@@ -120,6 +126,7 @@ function attachPlayer(socket, room, slot, name, reconnectToken = null) {
     name,
     reconnectToken: token,
     connected: true,
+    aslReady: false,
     videoReady: false,
     socket,
     slot,
@@ -244,6 +251,8 @@ function detachPlayer(socket) {
     room.remainingMs = Math.max(0, room.deadline - Date.now());
     room.deadline = null;
     room.status = "waiting";
+  } else if (room.status === "ready") {
+    room.status = "waiting";
   }
   room.lastEmptyAt = room.players.every((entry) => !entry?.connected) ? Date.now() : null;
   broadcast(room, "room:updated");
@@ -300,6 +309,16 @@ function handleVideoReady(socket) {
     send(socket, { type: "video:peer-ready", peerSlot: peer.slot });
   }
   broadcast(room, "room:updated");
+  startRoom(room);
+}
+
+function handleAslReady(socket, ready) {
+  const membership = sockets.get(socket);
+  if (!membership) return fail(socket, "Join a room before enabling ASL recognition.");
+  const { room, slot } = membership;
+  room.players[slot].aslReady = ready;
+  broadcast(room, "room:updated");
+  if (ready) startRoom(room);
 }
 
 function handleVideoSignal(socket, message) {
@@ -354,6 +373,10 @@ function handleMessage(socket, message) {
       return handleLetter(socket, message);
     case "video:ready":
       return handleVideoReady(socket);
+    case "asl:ready":
+      return handleAslReady(socket, true);
+    case "asl:stop":
+      return handleAslReady(socket, false);
     case "video:signal":
       return handleVideoSignal(socket, message);
     case "video:stop": {

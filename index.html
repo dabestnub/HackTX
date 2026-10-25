@@ -225,7 +225,6 @@
         </select>
         <button type="submit" id="play-again">Play again</button>
       </form>
-      <button type="button" id="results-reconnect">Reconnect to room</button>
       <p id="results-status" role="status" aria-live="polite"></p>
       <button type="button" id="results-menu">Back to lobby</button>
     </section>
@@ -590,7 +589,6 @@
       document.querySelector("#results-menu").addEventListener("click", returnToMenu);
       document.querySelector("#reconnect-menu").addEventListener("click", returnToMenu);
       reconnectButton.addEventListener("click", reconnectRoom);
-      document.querySelector("#results-reconnect").addEventListener("click", reconnectRoom);
       document.querySelector("#rematch-form").addEventListener("submit", (event) => {
         event.preventDefault();
         if (roomState?.status !== "complete" || debugPreview) return;
@@ -935,7 +933,7 @@
             : "";
           document.querySelector("#notice").textContent = `${localLetter} confirmed ${message.accepted}.${completion}`;
         } else if (message.type === "game:started") {
-          document.querySelector("#notice").textContent = "Both players are connected. The two-minute round is on!";
+          document.querySelector("#notice").textContent = "Both players are ready. The round is on!";
         } else if (message.type === "game:completed") {
           document.querySelector("#notice").textContent = roomState.completedReason === "score"
             ? `You reached your ${roomState.targetScore}-point target. Great teamwork!`
@@ -953,8 +951,6 @@
         document.querySelector("#results-title").textContent = roomState.completedReason === "time" ? "Time’s up!" : `${roomState.targetScore} points. Together.`;
         document.querySelector("#results-score").textContent = roomState.score;
         document.querySelector("#results-target").textContent = roomState.targetScore;
-        const connected = socket?.readyState === WebSocket.OPEN;
-        document.querySelector("#results-reconnect").disabled = connected || socket?.readyState === WebSocket.CONNECTING;
         if (wasHidden) {
           document.querySelector("#rematch-target").value = roomState.targetScore;
           document.querySelector("#rematch-duration").value = roomState.roundDuration;
@@ -982,7 +978,7 @@
           ? "Preview only"
           : socket?.readyState === WebSocket.OPEN ? "Connected" : "Reconnecting…";
         document.querySelector("#waiting-status").textContent = roomState.players.every((player) => player?.connected)
-          ? "Both players connected. Starting your round…"
+          ? "Both players connected. Enable ASL recognition and share live video to start."
           : "Waiting for another player to join…";
         document.querySelector("#lobby-players").replaceChildren(...roomState.players.map((player, index) => {
           const item = document.createElement("div");
@@ -1002,12 +998,13 @@
           document.querySelector(`#player-${index === 0 ? "one" : "two"}-name`).textContent =
             player?.name || `Player ${index + 1}`;
           document.querySelector(`#connection-${playerId}`).classList.toggle("online", Boolean(player?.connected));
-          document.querySelector(`#connection-${playerId}-text`).textContent = player?.connected ? "Connected" : "Waiting";
+          document.querySelector(`#connection-${playerId}-text`).textContent = !player?.connected ? "Waiting"
+            : `${player.aslReady ? "ASL ready" : "Enable ASL"} · ${player.videoSharing ? "Video shared" : "Share video"}`;
         }
         const localPlayerPanel = document.querySelector(playerSlot === 0 ? "#player-one" : "#player-two");
         const remotePlayerPanel = document.querySelector(playerSlot === 0 ? "#player-two" : "#player-one");
-        localPlayerPanel.append(localMediaPanel);
-        remotePlayerPanel.append(remoteVideoPreview);
+        if (localMediaPanel.parentElement !== localPlayerPanel) localPlayerPanel.append(localMediaPanel);
+        if (remoteVideoPreview.parentElement !== remotePlayerPanel) remotePlayerPanel.append(remoteVideoPreview);
         const otherPlayer = roomState.players[1 - playerSlot];
         if (!otherPlayer?.videoSharing && peerConnection) {
           stopVideoShare(false);
@@ -1048,10 +1045,12 @@
         document.querySelector("#turn-warning-copy").textContent = complete
           ? "This round has ended. Choose Play again above to start another round."
           : isMyTurn ? `Sign ${target[accepted.length]} and hold for 1.5 seconds, or use manual input.`
-          : roomState.status !== "playing" ? "Waiting for both players to connect."
+          : roomState.status === "ready" ? "Enable ASL recognition and share live video. The timer starts when both players are ready."
+          : roomState.status === "waiting" ? "Waiting for both players to connect."
           : `${roomState.players[roomState.currentPlayer]?.name || "Your partner"} is signing. Your signs and manual letters won't register until it's your turn.`;
         manualStatus.textContent = debugPreview ? "Preview only — create or join a room to enter letters."
           : complete ? "Round complete — choose Play again to start another round."
+          : roomState.status === "ready" ? "The round starts when both players enable ASL recognition and share live video."
           : !isMyTurn ? "Wait for your turn — your partner must enter the next letter."
           : submittingLetter ? "Sending your letter…"
           : `Your turn — click ${target[accepted.length]}. Camera recognition is paused while this panel is open.`;
@@ -1062,6 +1061,8 @@
           ? "Round complete!"
           : roomState.status === "waiting"
             ? "Waiting for both players"
+            : roomState.status === "ready"
+              ? "Enable ASL recognition and share live video to start"
             : `${roomState.players[roomState.currentPlayer]?.name || "Player"} signs letter ${roomState.letters.length + 1}`;
         document.querySelector("#image-copy").textContent = lastCompletedWord
           ? `${lastCompletedWord} complete!`
@@ -1330,6 +1331,7 @@
       }
 
       function stopCamera() {
+        if (cameraStream && socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "asl:stop" }));
         cancelAnimationFrame(animationFrame);
         cameraStream?.getTracks().forEach((track) => track.stop());
         cameraStream = null;
@@ -1379,6 +1381,7 @@
           await loadRecognition();
           render();
           cameraStatus.textContent = "Local recognition is on. Hold the expected sign for 1.5 seconds to register it, then lower your hand.";
+          if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "asl:ready" }));
           animationFrame = requestAnimationFrame(recognizeFrame);
         } catch (error) {
           const messages = {
